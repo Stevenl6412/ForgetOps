@@ -9,6 +9,12 @@ import {
   type HierarchyStore,
 } from "./hierarchy-store.js";
 import { registerEnvironmentRoutes } from "./modules/environments/routes.js";
+import {
+  PairingError,
+  PairingService,
+  PostgresPairingRepository,
+} from "./modules/agents/pairing-service.js";
+import { registerAgentRoutes } from "./modules/agents/routes.js";
 import { registerProjectRoutes } from "./modules/projects/routes.js";
 import { registerTenantRoutes } from "./modules/tenants/routes.js";
 
@@ -16,6 +22,7 @@ export interface AppOptions {
   authProvider: AuthContextProvider;
   store?: HierarchyStore;
   database?: DatabaseConnection;
+  pairingService?: PairingService;
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -23,10 +30,29 @@ export function buildApp(options: AppOptions): FastifyInstance {
   const app = Fastify({ logger: false });
   const dependencies = { authProvider: options.authProvider, store };
 
+  const pairingService =
+    options.pairingService ??
+    (options.database
+      ? new PairingService(
+          new PostgresPairingRepository(options.database.client),
+        )
+      : undefined);
+
   registerTenantRoutes(app, dependencies);
   registerProjectRoutes(app, dependencies);
   registerEnvironmentRoutes(app, dependencies);
+  if (pairingService) {
+    registerAgentRoutes(app, {
+      authProvider: options.authProvider,
+      pairingService,
+    });
+  }
   app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof PairingError) {
+      return reply
+        .code(error.statusCode)
+        .send(errorResponse(error.code, error.message));
+    }
     if (error instanceof ProjectLimitError) {
       return reply.code(422).send(errorResponse(error.code, error.message));
     }

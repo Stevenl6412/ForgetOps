@@ -25,6 +25,24 @@ create table environments (
 create unique index environments_project_kind_uq
   on environments(project_id, kind);
 
+create table agent_pairing_tokens (
+  id text primary key,
+  tenant_id text not null references tenants(id),
+  environment_id text not null references environments(id),
+  token_hash text not null,
+  allow_replacement boolean not null default false,
+  created_by_actor_id text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  consumed_at timestamptz
+);
+
+create index agent_pairing_tokens_environment_idx
+  on agent_pairing_tokens(environment_id);
+
+create unique index agent_pairing_tokens_hash_uq
+  on agent_pairing_tokens(token_hash);
+
 create table agents (
   id text primary key,
   environment_id text not null references environments(id),
@@ -32,6 +50,7 @@ create table agents (
   public_encryption_key text not null,
   version text not null,
   protocol_version text not null,
+  instance_fingerprint text not null,
   status text not null check (status in ('pairing', 'online', 'offline', 'outdated', 'revoked')),
   last_seen_at timestamptz,
   last_sequence text not null,

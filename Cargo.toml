@@ -1,3 +1,7 @@
 [workspace]
-members = ["agent/crates/agent-core", "agent/crates/agent-protocol"]
+members = [
+  "agent/bin/forgetops-agent",
+  "agent/crates/agent-core",
+  "agent/crates/agent-protocol",
+]
 resolver = "3"

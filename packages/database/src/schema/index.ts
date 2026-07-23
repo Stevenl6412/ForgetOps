@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -72,6 +73,40 @@ export const environments = pgTable(
   ],
 );
 
+export const agentPairingTokens = pgTable(
+  "agent_pairing_tokens",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    environmentId: text("environment_id")
+      .notNull()
+      .references(() => environments.id),
+    tokenHash: text("token_hash").notNull(),
+    allowReplacement: boolean("allow_replacement").notNull().default(false),
+    createdByActorId: text("created_by_actor_id").notNull(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "string",
+    })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "string",
+    }).notNull(),
+    consumedAt: timestamp("consumed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+  },
+  (table) => [
+    uniqueIndex("agent_pairing_tokens_hash_uq").on(table.tokenHash),
+    index("agent_pairing_tokens_environment_idx").on(table.environmentId),
+  ],
+);
+
 export const agents = pgTable(
   "agents",
   {
@@ -83,6 +118,7 @@ export const agents = pgTable(
     publicEncryptionKey: text("public_encryption_key").notNull(),
     version: text("version").notNull(),
     protocolVersion: text("protocol_version").notNull(),
+    instanceFingerprint: text("instance_fingerprint").notNull(),
     status: text("status").notNull(),
     lastSeenAt: timestamp("last_seen_at", {
       withTimezone: true,

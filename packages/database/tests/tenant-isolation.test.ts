@@ -148,8 +148,11 @@ describe("tenant isolation and database integrity", () => {
     const insertAgent = (id: string, status: string) => database.client`
       insert into agents (
         id, environment_id, public_signing_key, public_encryption_key,
-        version, protocol_version, status, last_sequence
-      ) values (${id}, ${environmentId}, 'sign', 'encrypt', '1.0.0', '1', ${status}, '0')
+        version, protocol_version, instance_fingerprint, status, last_sequence
+      ) values (
+        ${id}, ${environmentId}, 'sign', 'encrypt', '1.0.0', '1',
+        'sha256:test-instance', ${status}, '0'
+      )
     `;
 
     await insertAgent("agent_revoked_1", "revoked");
