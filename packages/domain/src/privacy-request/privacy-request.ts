@@ -312,6 +312,17 @@ export class PrivacyRequestAggregate {
     return this.events.splice(0);
   }
 
+  pendingEvents(): readonly DomainEvent[] {
+    return this.events.slice();
+  }
+
+  markEventsCommitted(count: number): void {
+    if (!Number.isInteger(count) || count < 0 || count > this.events.length) {
+      throw new RangeError("INVALID_COMMITTED_EVENT_COUNT");
+    }
+    this.events.splice(0, count);
+  }
+
   private assertStatus(
     expected: PrivacyRequestStatus,
     target: PrivacyRequestStatus,

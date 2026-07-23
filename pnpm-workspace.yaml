@@ -3,7 +3,10 @@ packages:
   - packages/*
   - sdk/*
 allowBuilds:
+  cpu-features: false
+  protobufjs: false
   sharp: true
+  ssh2: false
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - "@turbo/darwin-64@2.10.6"

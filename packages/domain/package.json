@@ -2,6 +2,7 @@
   "name": "@forgetops/domain",
   "type": "module",
   "private": true,
+  "exports": "./src/privacy-request/index.ts",
   "scripts": {
     "test": "vitest run"
   },

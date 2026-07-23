@@ -534,6 +534,37 @@ describe("plan binding and authorization", () => {
 });
 
 describe("events and snapshots", () => {
+  it("retains pending events until persistence acknowledges them", () => {
+    const request = created();
+    const captured = request.pendingEvents();
+
+    expect(captured.map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+    ]);
+    expect(request.pendingEvents()).toEqual(captured);
+  });
+
+  it("acknowledges only the captured event prefix", () => {
+    const request = created();
+    const capturedCount = request.pendingEvents().length;
+    request.markIdentityVerified({ actorId: "usr_1" });
+
+    request.markEventsCommitted(capturedCount);
+
+    expect(request.pendingEvents().map((event) => event.type)).toEqual([
+      "IdentityVerified",
+    ]);
+  });
+
+  it("rejects invalid event acknowledgement without draining events", () => {
+    const request = created();
+
+    expect(() => request.markEventsCommitted(2)).toThrow(RangeError);
+    expect(request.pendingEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+    ]);
+  });
+
   it("names identity-verification initiation as a request", () => {
     const request = created();
 
