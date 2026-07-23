@@ -1,0 +1,5 @@
+{
+  "name": "@forgetops/worker",
+  "type": "module",
+  "private": true
+}

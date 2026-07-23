@@ -1,0 +1,21 @@
+{
+  "name": "forgetops",
+  "scripts": {
+    "test": "turbo run test && cargo nextest run --workspace",
+    "build": "turbo run build",
+    "lint": "turbo run lint && cargo clippy --workspace --all-targets -- -D warnings",
+    "format:check": "prettier --check . && cargo fmt --all -- --check"
+  },
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "private": true,
+  "devDependencies": {
+    "prettier": "3.9.6",
+    "turbo": "2.10.6",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

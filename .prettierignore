@@ -1,0 +1,8 @@
+.superpowers/
+docs/forgetops-package/
+node_modules/
+.turbo/
+target/
+apps/web/.next/
+apps/web/public/
+pnpm-lock.yaml

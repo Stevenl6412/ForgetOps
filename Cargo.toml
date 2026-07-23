@@ -1,0 +1,3 @@
+[workspace]
+members = ["agent/crates/agent-core"]
+resolver = "3"
