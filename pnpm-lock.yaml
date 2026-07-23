@@ -64,7 +64,11 @@ importers:
 
   packages/database: {}
 
-  packages/domain: {}
+  packages/domain:
+    dependencies:
+      '@forgetops/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   sdk/typescript: {}
 

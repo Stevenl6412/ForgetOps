@@ -4,5 +4,8 @@
   "private": true,
   "scripts": {
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@forgetops/contracts": "workspace:*"
   }
 }
