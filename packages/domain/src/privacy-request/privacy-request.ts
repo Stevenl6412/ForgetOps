@@ -1,4 +1,4 @@
-import type { PrivacyRequestStatus } from "@forgetops/contracts/src/privacy-request.js";
+import type { PrivacyRequestStatus } from "@forgetops/contracts";
 import { PlanVersionMismatchError, StateConflictError } from "./errors.js";
 
 export type PrivacyRequestType = "delete" | "export";
@@ -42,6 +42,10 @@ export interface PlanApproval extends PlanBinding {
   decidedBy: string;
 }
 
+export interface ExecutionAuthorization extends PlanBinding {
+  agentId: string;
+}
+
 export interface PrivacyRequestSnapshot {
   id: string;
   environmentId: string;
@@ -70,6 +74,35 @@ function event(type: string, payload: Record<string, EventValue>): DomainEvent {
   return Object.freeze({ type, payload: Object.freeze({ ...payload }) });
 }
 
+function normalizePlan(input: AttachedPlan): Readonly<AttachedPlan> {
+  return Object.freeze({
+    planId: input.planId,
+    planVersion: input.planVersion,
+    planFingerprint: input.planFingerprint,
+    requiresApproval: input.requiresApproval,
+  });
+}
+
+function normalizeApproval(input: PlanApproval): Readonly<PlanApproval> {
+  return Object.freeze({
+    planId: input.planId,
+    planVersion: input.planVersion,
+    planFingerprint: input.planFingerprint,
+    decidedBy: input.decidedBy,
+  });
+}
+
+function normalizeAuthorization(
+  input: ExecutionAuthorization,
+): Readonly<ExecutionAuthorization> {
+  return Object.freeze({
+    planId: input.planId,
+    planVersion: input.planVersion,
+    planFingerprint: input.planFingerprint,
+    agentId: input.agentId,
+  });
+}
+
 export class PrivacyRequestAggregate {
   readonly id: string;
   readonly environmentId: string;
@@ -78,11 +111,11 @@ export class PrivacyRequestAggregate {
   readonly policyVersion: number;
   readonly createdByActorId: string;
   readonly deadlineAt: string;
-  status: PrivacyRequestStatus;
-  version: number;
+  private _status: PrivacyRequestStatus;
+  private _version: number;
 
-  private plan: AttachedPlan | null = null;
-  private approval: PlanApproval | null = null;
+  private plan: Readonly<AttachedPlan> | null = null;
+  private approval: Readonly<PlanApproval> | null = null;
   private readonly events: DomainEvent[] = [];
 
   private constructor(input: CreatePrivacyRequest) {
@@ -93,8 +126,16 @@ export class PrivacyRequestAggregate {
     this.policyVersion = input.policyVersion;
     this.createdByActorId = input.createdByActorId;
     this.deadlineAt = input.deadlineAt;
-    this.status = "created";
-    this.version = 1;
+    this._status = "created";
+    this._version = 1;
+  }
+
+  get status(): PrivacyRequestStatus {
+    return this._status;
+  }
+
+  get version(): number {
+    return this._version;
   }
 
   static create(input: CreatePrivacyRequest): PrivacyRequestAggregate {
@@ -114,7 +155,7 @@ export class PrivacyRequestAggregate {
   beginIdentityVerification(input: { actorId: string }): void {
     this.transition(
       "identity_verification_pending",
-      event("IdentityVerificationStarted", {
+      event("IdentityVerificationRequested", {
         requestId: this.id,
         actorId: input.actorId,
       }),
@@ -143,17 +184,19 @@ export class PrivacyRequestAggregate {
 
   attachPlan(input: AttachedPlan): void {
     this.assertCanTransition("awaiting_approval");
-    this.plan = { ...input };
+    const attachedPlan = normalizePlan(input);
     const planCreated = event("ExecutionPlanCreated", {
       requestId: this.id,
-      planId: input.planId,
-      planVersion: input.planVersion,
-      planFingerprint: input.planFingerprint,
-      requiresApproval: input.requiresApproval,
+      planId: attachedPlan.planId,
+      planVersion: attachedPlan.planVersion,
+      planFingerprint: attachedPlan.planFingerprint,
+      requiresApproval: attachedPlan.requiresApproval,
     });
 
-    if (input.requiresApproval) {
-      this.transition("awaiting_approval", planCreated);
+    this.plan = attachedPlan;
+    if (attachedPlan.requiresApproval) {
+      this._status = "awaiting_approval";
+      this.record(planCreated);
     } else {
       this.record(planCreated);
     }
@@ -161,42 +204,42 @@ export class PrivacyRequestAggregate {
 
   approvePlan(input: PlanApproval): void {
     this.assertStatus("awaiting_approval", "awaiting_approval");
-    this.assertPlanBinding(input);
-    this.approval = { ...input };
-    this.record(
-      event("ExecutionPlanApproved", {
-        requestId: this.id,
-        planId: input.planId,
-        planVersion: input.planVersion,
-        planFingerprint: input.planFingerprint,
-        decidedBy: input.decidedBy,
-      }),
-    );
+    const approval = normalizeApproval(input);
+    this.assertPlanBinding(approval);
+    const planApproved = event("ExecutionPlanApproved", {
+      requestId: this.id,
+      planId: approval.planId,
+      planVersion: approval.planVersion,
+      planFingerprint: approval.planFingerprint,
+      decidedBy: approval.decidedBy,
+    });
+
+    this.approval = approval;
+    this.record(planApproved);
   }
 
-  authorizeExecution(input: PlanBinding & { agentId: string }): void {
+  authorizeExecution(input: ExecutionAuthorization): void {
     this.assertCanTransition("execution_authorized");
     if (!this.plan) {
-      throw new StateConflictError(this.status, "execution_authorized");
+      throw new StateConflictError(this._status, "execution_authorized");
     }
-    this.assertPlanBinding(input);
+    const authorization = normalizeAuthorization(input);
+    this.assertPlanBinding(authorization);
     if (
-      (this.status === "planning" && this.plan.requiresApproval) ||
-      (this.status === "awaiting_approval" && !this.approval)
+      (this._status === "planning" && this.plan.requiresApproval) ||
+      (this._status === "awaiting_approval" && !this.approval)
     ) {
-      throw new StateConflictError(this.status, "execution_authorized");
+      throw new StateConflictError(this._status, "execution_authorized");
     }
 
-    this.transition(
-      "execution_authorized",
-      event("ExecutionAuthorized", {
-        requestId: this.id,
-        planId: input.planId,
-        planVersion: input.planVersion,
-        planFingerprint: input.planFingerprint,
-        agentId: input.agentId,
-      }),
-    );
+    const executionAuthorized = event("ExecutionAuthorized", {
+      requestId: this.id,
+      planId: authorization.planId,
+      planVersion: authorization.planVersion,
+      planFingerprint: authorization.planFingerprint,
+      agentId: authorization.agentId,
+    });
+    this.transition("execution_authorized", executionAuthorized);
   }
 
   markExecuting(input: { agentId: string }): void {
@@ -230,12 +273,11 @@ export class PrivacyRequestAggregate {
     );
   }
 
-  fail(input: { category: string }): void {
+  fail(_input: { category: string }): void {
     this.transition(
       "failed",
       event("PrivacyRequestFailed", {
         requestId: this.id,
-        category: input.category,
       }),
     );
   }
@@ -256,11 +298,11 @@ export class PrivacyRequestAggregate {
       environmentId: this.environmentId,
       type: this.type,
       source: this.source,
-      status: this.status,
+      status: this._status,
       policyVersion: this.policyVersion,
       createdByActorId: this.createdByActorId,
       deadlineAt: this.deadlineAt,
-      version: this.version,
+      version: this._version,
       plan: this.plan && { ...this.plan },
       approval: this.approval && { ...this.approval },
     };
@@ -274,14 +316,14 @@ export class PrivacyRequestAggregate {
     expected: PrivacyRequestStatus,
     target: PrivacyRequestStatus,
   ): void {
-    if (this.status !== expected) {
-      throw new StateConflictError(this.status, target);
+    if (this._status !== expected) {
+      throw new StateConflictError(this._status, target);
     }
   }
 
   private assertCanTransition(next: PrivacyRequestStatus): void {
-    if (!transitions[this.status].includes(next)) {
-      throw new StateConflictError(this.status, next);
+    if (!transitions[this._status].includes(next)) {
+      throw new StateConflictError(this._status, next);
     }
   }
 
@@ -297,7 +339,7 @@ export class PrivacyRequestAggregate {
   }
 
   private record(domainEvent: DomainEvent): void {
-    this.version += 1;
+    this._version += 1;
     this.events.push(domainEvent);
   }
 
@@ -306,7 +348,7 @@ export class PrivacyRequestAggregate {
     domainEvent: DomainEvent,
   ): void {
     this.assertCanTransition(next);
-    this.status = next;
+    this._status = next;
     this.record(domainEvent);
   }
 }

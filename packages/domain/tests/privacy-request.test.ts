@@ -12,6 +12,26 @@ const plan = {
   planFingerprint: "sha256:new",
 };
 
+function throwOnSecondRead<T extends Record<string, string | number | boolean>>(
+  values: T,
+) {
+  const reads: Record<string, number> = {};
+  const input = {};
+
+  for (const [key, value] of Object.entries(values)) {
+    Object.defineProperty(input, key, {
+      enumerable: true,
+      get() {
+        reads[key] = (reads[key] ?? 0) + 1;
+        if (reads[key] > 1) throw new Error(`${key} read more than once`);
+        return value;
+      },
+    });
+  }
+
+  return { input: input as T, reads };
+}
+
 function created() {
   return PrivacyRequestAggregate.create({
     id: "req_1",
@@ -63,6 +83,22 @@ function inStatus(status: PrivacyRequestStatus) {
 }
 
 describe("PrivacyRequestAggregate transitions", () => {
+  it("exposes status and version as read-only state", () => {
+    const request = created();
+
+    expect(Reflect.set(request, "status", "completed")).toBe(false);
+    expect(Reflect.set(request, "version", 99)).toBe(false);
+    expect(request.status).toBe("created");
+    expect(request.version).toBe(1);
+
+    if (false) {
+      // @ts-expect-error aggregate state changes only through commands
+      request.status = "completed";
+      // @ts-expect-error aggregate version changes only through commands
+      request.version = 99;
+    }
+  });
+
   it.each([
     [
       "created",
@@ -240,6 +276,172 @@ describe("PrivacyRequestAggregate transitions", () => {
 });
 
 describe("plan binding and authorization", () => {
+  it("reads an attached plan input exactly once before committing it", () => {
+    const request = inStatus("planning");
+    const { input, reads } = throwOnSecondRead({
+      ...plan,
+      requiresApproval: false,
+    });
+
+    request.attachPlan(input);
+
+    expect(Object.values(reads)).toEqual([1, 1, 1, 1]);
+    expect(request.snapshot().plan).toEqual({
+      ...plan,
+      requiresApproval: false,
+    });
+    expect(request.pullEvents().at(-1)?.payload).toMatchObject(plan);
+  });
+
+  it("reads an approval input exactly once before committing it", () => {
+    const request = inStatus("awaiting_approval");
+    const { input, reads } = throwOnSecondRead({
+      ...plan,
+      decidedBy: "usr_2",
+    });
+
+    request.approvePlan(input);
+
+    expect(Object.values(reads)).toEqual([1, 1, 1, 1]);
+    expect(request.snapshot().approval).toEqual({
+      ...plan,
+      decidedBy: "usr_2",
+    });
+    expect(request.pullEvents().at(-1)?.payload).toMatchObject(plan);
+  });
+
+  it("reads an authorization input exactly once before committing it", () => {
+    const request = inStatus("awaiting_approval");
+    request.approvePlan({ ...plan, decidedBy: "usr_2" });
+    const { input, reads } = throwOnSecondRead({
+      ...plan,
+      agentId: "agt_1",
+    });
+
+    request.authorizeExecution(input);
+
+    expect(Object.values(reads)).toEqual([1, 1, 1, 1]);
+    expect(request.status).toBe("execution_authorized");
+    expect(request.pullEvents().at(-1)?.payload).toMatchObject(plan);
+  });
+
+  it("preserves snapshot and queued events when plan normalization throws", () => {
+    const request = inStatus("planning");
+    const before = request.snapshot();
+    const input = Object.defineProperties(
+      {},
+      {
+        planId: { enumerable: true, get: () => "plan_1" },
+        planVersion: {
+          enumerable: true,
+          get() {
+            throw new Error("accessor failed");
+          },
+        },
+        planFingerprint: { enumerable: true, get: () => "sha256:new" },
+        requiresApproval: { enumerable: true, get: () => true },
+      },
+    );
+
+    expect(() =>
+      request.attachPlan(input as typeof plan & { requiresApproval: boolean }),
+    ).toThrow("accessor failed");
+    expect(request.snapshot()).toEqual(before);
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerified",
+      "PlanningRequested",
+    ]);
+  });
+
+  it("preserves snapshot and queued events when approval is stale", () => {
+    const request = inStatus("awaiting_approval");
+    const before = request.snapshot();
+
+    expect(() =>
+      request.approvePlan({
+        ...plan,
+        planFingerprint: "sha256:stale",
+        decidedBy: "usr_2",
+      }),
+    ).toThrow("PLAN_VERSION_MISMATCH");
+    expect(request.snapshot()).toEqual(before);
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerified",
+      "PlanningRequested",
+      "ExecutionPlanCreated",
+    ]);
+  });
+
+  it("preserves snapshot and queued events when approval normalization throws", () => {
+    const request = inStatus("awaiting_approval");
+    const before = request.snapshot();
+    const input = {
+      ...plan,
+      get decidedBy(): string {
+        throw new Error("approval accessor failed");
+      },
+    };
+
+    expect(() => request.approvePlan(input)).toThrow(
+      "approval accessor failed",
+    );
+    expect(request.snapshot()).toEqual(before);
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerified",
+      "PlanningRequested",
+      "ExecutionPlanCreated",
+    ]);
+  });
+
+  it("preserves snapshot and queued events when authorization is stale", () => {
+    const request = inStatus("awaiting_approval");
+    request.approvePlan({ ...plan, decidedBy: "usr_2" });
+    const before = request.snapshot();
+
+    expect(() =>
+      request.authorizeExecution({
+        ...plan,
+        planVersion: 3,
+        agentId: "agt_1",
+      }),
+    ).toThrow("PLAN_VERSION_MISMATCH");
+    expect(request.snapshot()).toEqual(before);
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerified",
+      "PlanningRequested",
+      "ExecutionPlanCreated",
+      "ExecutionPlanApproved",
+    ]);
+  });
+
+  it("preserves snapshot and queued events when authorization normalization throws", () => {
+    const request = inStatus("awaiting_approval");
+    request.approvePlan({ ...plan, decidedBy: "usr_2" });
+    const before = request.snapshot();
+    const input = {
+      ...plan,
+      get agentId(): string {
+        throw new Error("authorization accessor failed");
+      },
+    };
+
+    expect(() => request.authorizeExecution(input)).toThrow(
+      "authorization accessor failed",
+    );
+    expect(request.snapshot()).toEqual(before);
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerified",
+      "PlanningRequested",
+      "ExecutionPlanCreated",
+      "ExecutionPlanApproved",
+    ]);
+  });
+
   it("records an auto-execution plan without authorizing execution", () => {
     const request = inStatus("planning");
     request.pullEvents();
@@ -332,6 +534,26 @@ describe("plan binding and authorization", () => {
 });
 
 describe("events and snapshots", () => {
+  it("names identity-verification initiation as a request", () => {
+    const request = created();
+
+    request.beginIdentityVerification({ actorId: "usr_1" });
+
+    expect(request.pullEvents().map((event) => event.type)).toEqual([
+      "PrivacyRequestCreated",
+      "IdentityVerificationRequested",
+    ]);
+  });
+
+  it("does not emit unrestricted failure text", () => {
+    const secret = "connector_error password=hunter2";
+    const request = inStatus("planning");
+
+    request.fail({ category: secret });
+
+    expect(JSON.stringify(request.pullEvents())).not.toContain(secret);
+  });
+
   it("emits immutable sanitized events in order and drains them on read", () => {
     const request = created();
     request.markIdentityVerified({ actorId: "usr_1" });
