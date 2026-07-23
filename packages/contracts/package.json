@@ -1,5 +1,11 @@
 {
   "name": "@forgetops/contracts",
   "type": "module",
-  "private": true
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
 }

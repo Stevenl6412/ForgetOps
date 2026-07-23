@@ -1,0 +1,37 @@
+{
+  "protocolVersion": "1.0",
+  "messageType": "job.available",
+  "messageId": "msg_01demo",
+  "environmentId": "env_01demo",
+  "agentId": "agt_01demo",
+  "sequence": "1042",
+  "sentAt": "2026-07-21T10:00:00Z",
+  "payload": {
+    "jobId": "job_01plan",
+    "requestId": "req_01demo",
+    "environmentId": "env_01demo",
+    "kind": "plan",
+    "planVersion": 3,
+    "payloadCiphertext": null,
+    "authorization": null,
+    "availableAt": "2026-07-21T10:00:00Z",
+    "expiresAt": "2026-07-21T10:15:00Z",
+    "attempt": 1,
+    "planProjection": {
+      "requestId": "req_01demo",
+      "planVersion": 3,
+      "planFingerprint": "sha256:plan-v3-sanitized",
+      "steps": [
+        {
+          "stepId": "step_01documents",
+          "connectorType": "supabase",
+          "resourceType": "documents",
+          "action": "delete",
+          "estimatedCount": 17,
+          "risk": "medium"
+        }
+      ]
+    }
+  },
+  "signature": "c2FuaXRpemVkLXB1YmxpYy1zaWduYXR1cmUtZml4dHVyZQ"
+}
