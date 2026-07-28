@@ -1,0 +1,36 @@
+name: Connector request
+description: Propose a connector with its required safety behavior.
+title: "connector: "
+labels: [connector]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement and provider
+      description: Explain the workflow this connector would enable and identify the provider.
+    validations:
+      required: true
+  - type: input
+    id: component-version
+    attributes:
+      label: Affected component and version
+      description: Name the related connector or adapter and its version or commit.
+      placeholder: "agent/connector-sdk at abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: lifecycle
+    attributes:
+      label: Lifecycle behavior
+      description: Document discovery, export, erase/anonymize, verification, idempotency, rate limits, and retention behavior.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmations
+      options:
+        - label: I confirm this request contains no secrets or personal data.
+          required: true
+        - label: I agree to follow the Code of Conduct.
+          required: true
