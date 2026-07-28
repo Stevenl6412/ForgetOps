@@ -21,20 +21,23 @@ turns that work into a reviewable lifecycle: discover data, approve the exact
 plan, execute configured actions, and retain audit evidence without moving raw
 identities or export contents into the control plane.
 
-## Workflows
+## Intended workflows
 
 ### Delete account
 
-An administrator or verified end user submits a deletion request. The agent
-discovers matching data, returns a sanitized plan, and executes the approved
-erase, anonymize, or retention actions with verification and audit records.
+Implemented building blocks cover deletion request state, subject-envelope
+handling, plan approval, execution authorization, and audit metadata. When the
+control plane and agent execution loop are wired into a deployment, the intended
+workflow is to discover matching data, review a sanitized plan, then execute
+configured erase, anonymize, or retention actions with verification.
 
 ### Export my data
 
-After identity verification, the agent discovers exportable data, gathers it
-locally, creates an encrypted archive and manifest, then publishes it to
-customer-owned storage. A reauthenticated browser receives the archive key only
-when it is needed for download.
+Implemented building blocks cover export requests, encrypted archive creation,
+browser-key wrapping, and download capabilities. When the remaining deployment
+wiring is complete, the intended workflow is for the agent to discover and
+gather data locally, publish an encrypted archive to customer-owned storage,
+and let a reauthenticated browser obtain the archive key for download.
 
 ## Implemented in this preview
 
@@ -53,6 +56,8 @@ when it is needed for download.
 
 - Supabase is the only implemented connector. Stripe and Clerk remain design
   targets, not shipped integrations.
+- The agent execution loop, agent healthcheck, and persistent archive-storage
+  adapter are not yet wired into a runnable end-to-end deployment.
 - The production-pilot validation is incomplete: scale, operational runbook,
   incident-recovery, and signed-release gates still need evidence.
 - Connector behavior depends on your configuration and each provider's APIs;
