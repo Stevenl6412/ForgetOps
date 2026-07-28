@@ -1,0 +1,13 @@
+{
+  "type": "forgetops.execution-lease",
+  "version": 1,
+  "keyId": "cp-execution-lease-key-1",
+  "environmentId": "env_01demo",
+  "agentId": "agt_01demo",
+  "requestId": "req_01demo",
+  "attemptId": "att_01demo",
+  "allowedStepIds": ["step_01documents"],
+  "issuedAt": "2026-07-21T10:00:00.000Z",
+  "expiresAt": "2026-07-21T10:01:00.000Z",
+  "leaseId": "lease_0123456789abcdef"
+}

@@ -1,0 +1,24 @@
+tables:
+  profiles:
+    identity_column: user_id
+    subject_field: application_user_id
+    delete: true
+  documents:
+    identity_column: owner_id
+    subject_field: application_user_id
+    delete: true
+  audit_events:
+    identity_column: actor_user_id
+    subject_field: application_user_id
+    action: anonymize
+    fields:
+      - actor_user_id
+      - actor_email
+
+storage:
+  user-uploads:
+    prefix: "users/{user_id}/"
+    delete: true
+
+delete_auth_user: false
+approved_functions: []

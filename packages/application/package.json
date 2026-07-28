@@ -1,0 +1,15 @@
+{
+  "name": "@forgetops/application",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/privacy-requests/ports.ts",
+    "./tenant-hierarchy": "./src/tenant-hierarchy/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@forgetops/domain": "workspace:*"
+  }
+}

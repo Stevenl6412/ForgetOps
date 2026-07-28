@@ -1,80 +1,32 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseConnection } from "@forgetops/database";
+import {
+  EnvironmentConflictError,
+  HierarchyNotFoundError,
+  MAX_PROJECTS_PER_TENANT,
+  ProjectLimitError,
+  type CreateEnvironmentInput,
+  type CreateProjectInput,
+  type EnvironmentKind,
+  type EnvironmentRecord,
+  type EnvironmentStatus,
+  type HierarchyStore,
+  type ProjectRecord,
+  type TenantPlan,
+  type TenantRecord,
+} from "@forgetops/application/tenant-hierarchy";
 
-export type TenantPlan = "trial" | "starter" | "team";
-export type EnvironmentKind = "staging" | "production";
-export type EnvironmentStatus = "active" | "disabled";
-
-export interface TenantRecord {
-  id: string;
-  name: string;
-  plan: TenantPlan;
-  createdAt: string;
-}
-
-export interface ProjectRecord {
-  id: string;
-  tenantId: string;
-  name: string;
-  slug: string;
-  createdAt: string;
-}
-
-export interface EnvironmentRecord {
-  id: string;
-  projectId: string;
-  kind: EnvironmentKind;
-  status: EnvironmentStatus;
-  subjectHashKeyVersion: number;
-  createdAt: string;
-}
-
-export interface CreateProjectInput {
-  name: string;
-  slug: string;
-}
-
-export interface CreateEnvironmentInput {
-  kind: EnvironmentKind;
-}
-
-export class HierarchyNotFoundError extends Error {
-  readonly code = "NOT_FOUND" as const;
-}
-
-export class ProjectLimitError extends Error {
-  readonly code = "PROJECT_LIMIT_REACHED" as const;
-}
-
-export class EnvironmentConflictError extends Error {
-  readonly code = "ENVIRONMENT_ALREADY_EXISTS" as const;
-}
-
-export interface HierarchyStore {
-  getTenant(tenantId: string): Promise<TenantRecord | null>;
-  listProjects(tenantId: string): Promise<readonly ProjectRecord[]>;
-  getProject(
-    tenantId: string,
-    projectId: string,
-  ): Promise<ProjectRecord | null>;
-  createProject(
-    tenantId: string,
-    input: CreateProjectInput,
-  ): Promise<ProjectRecord>;
-  listEnvironments(
-    tenantId: string,
-    projectId: string,
-  ): Promise<readonly EnvironmentRecord[]>;
-  getEnvironment(
-    tenantId: string,
-    environmentId: string,
-  ): Promise<EnvironmentRecord | null>;
-  createEnvironment(
-    tenantId: string,
-    projectId: string,
-    input: CreateEnvironmentInput,
-  ): Promise<EnvironmentRecord>;
-}
+export { EnvironmentConflictError, HierarchyNotFoundError, ProjectLimitError };
+export type {
+  CreateEnvironmentInput,
+  CreateProjectInput,
+  EnvironmentKind,
+  EnvironmentRecord,
+  EnvironmentStatus,
+  HierarchyStore,
+  ProjectRecord,
+  TenantPlan,
+  TenantRecord,
+};
 
 export class InMemoryHierarchyStore implements HierarchyStore {
   private readonly tenants = new Map<string, TenantRecord>();
@@ -110,17 +62,16 @@ export class InMemoryHierarchyStore implements HierarchyStore {
     return project?.tenantId === tenantId ? project : null;
   }
 
-  async createProject(
+  async createProjectWithinLimit(
     tenantId: string,
     input: CreateProjectInput,
+    maxProjects: number,
   ): Promise<ProjectRecord> {
     if (!this.tenants.has(tenantId)) {
       throw new HierarchyNotFoundError("Tenant not found");
     }
-    if ((await this.listProjects(tenantId)).length >= 5) {
-      throw new ProjectLimitError(
-        "A tenant cannot have more than five projects",
-      );
+    if ((await this.listProjects(tenantId)).length >= maxProjects) {
+      throw new ProjectLimitError("The tenant project limit has been reached");
     }
     const project: ProjectRecord = {
       id: `prj_${randomUUID()}`,
@@ -131,6 +82,17 @@ export class InMemoryHierarchyStore implements HierarchyStore {
     };
     this.projects.set(project.id, project);
     return project;
+  }
+
+  async createProject(
+    tenantId: string,
+    input: CreateProjectInput,
+  ): Promise<ProjectRecord> {
+    return this.createProjectWithinLimit(
+      tenantId,
+      input,
+      MAX_PROJECTS_PER_TENANT,
+    );
   }
 
   async listEnvironments(
@@ -182,168 +144,10 @@ export class InMemoryHierarchyStore implements HierarchyStore {
       kind: input.kind,
       status: "active",
       subjectHashKeyVersion: 1,
+      subjectCanonicalizationVersion: 1,
       createdAt: new Date().toISOString(),
     };
     this.environments.set(environment.id, environment);
     return environment;
   }
-}
-
-type SqlClient = DatabaseConnection["client"];
-type DatabaseTenantRow = Omit<TenantRecord, "createdAt"> & {
-  createdAt: Date | string;
-};
-type DatabaseProjectRow = Omit<ProjectRecord, "createdAt"> & {
-  createdAt: Date | string;
-};
-type DatabaseEnvironmentRow = Omit<EnvironmentRecord, "createdAt"> & {
-  createdAt: Date | string;
-};
-
-export class PostgresHierarchyStore implements HierarchyStore {
-  constructor(private readonly client: SqlClient) {}
-
-  async getTenant(tenantId: string): Promise<TenantRecord | null> {
-    const rows = await this.client<DatabaseTenantRow[]>`
-      select id, name, plan, created_at as "createdAt"
-      from tenants
-      where id = ${tenantId}
-    `;
-    return rows[0] ? normalizeCreatedAt(rows[0]) : null;
-  }
-
-  async listProjects(tenantId: string): Promise<readonly ProjectRecord[]> {
-    const rows = await this.client<DatabaseProjectRow[]>`
-      select id, tenant_id as "tenantId", name, slug, created_at as "createdAt"
-      from projects
-      where tenant_id = ${tenantId}
-      order by created_at, id
-    `;
-    return rows.map(normalizeCreatedAt);
-  }
-
-  async getProject(
-    tenantId: string,
-    projectId: string,
-  ): Promise<ProjectRecord | null> {
-    const rows = await this.client<DatabaseProjectRow[]>`
-      select id, tenant_id as "tenantId", name, slug, created_at as "createdAt"
-      from projects
-      where id = ${projectId} and tenant_id = ${tenantId}
-    `;
-    return rows[0] ? normalizeCreatedAt(rows[0]) : null;
-  }
-
-  async createProject(
-    tenantId: string,
-    input: CreateProjectInput,
-  ): Promise<ProjectRecord> {
-    return this.client.begin(async (transaction) => {
-      const tenantRows = await transaction<{ id: string }[]>`
-        select id from tenants where id = ${tenantId} for update
-      `;
-      if (!tenantRows[0]) {
-        throw new HierarchyNotFoundError("Tenant not found");
-      }
-      const countRows = await transaction<{ count: string }[]>`
-        select count(*)::text as count from projects where tenant_id = ${tenantId}
-      `;
-      if (Number(countRows[0]?.count ?? 0) >= 5) {
-        throw new ProjectLimitError(
-          "A tenant cannot have more than five projects",
-        );
-      }
-      const projectId = `prj_${randomUUID()}`;
-      const rows = await transaction<DatabaseProjectRow[]>`
-        insert into projects (id, tenant_id, name, slug)
-        values (${projectId}, ${tenantId}, ${input.name}, ${input.slug})
-        returning id, tenant_id as "tenantId", name, slug, created_at as "createdAt"
-      `;
-      return normalizeCreatedAt(rows[0]);
-    }) as Promise<ProjectRecord>;
-  }
-
-  async listEnvironments(
-    tenantId: string,
-    projectId: string,
-  ): Promise<readonly EnvironmentRecord[]> {
-    const rows = await this.client<DatabaseEnvironmentRow[]>`
-      select e.id, e.project_id as "projectId", e.kind, e.status,
-             e.subject_hash_key_version as "subjectHashKeyVersion",
-             e.created_at as "createdAt"
-      from environments e
-      inner join projects p on p.id = e.project_id
-      where e.project_id = ${projectId} and p.tenant_id = ${tenantId}
-      order by e.created_at, e.id
-    `;
-    return rows.map(normalizeCreatedAt);
-  }
-
-  async getEnvironment(
-    tenantId: string,
-    environmentId: string,
-  ): Promise<EnvironmentRecord | null> {
-    const rows = await this.client<DatabaseEnvironmentRow[]>`
-      select e.id, e.project_id as "projectId", e.kind, e.status,
-             e.subject_hash_key_version as "subjectHashKeyVersion",
-             e.created_at as "createdAt"
-      from environments e
-      inner join projects p on p.id = e.project_id
-      where e.id = ${environmentId} and p.tenant_id = ${tenantId}
-    `;
-    return rows[0] ? normalizeCreatedAt(rows[0]) : null;
-  }
-
-  async createEnvironment(
-    tenantId: string,
-    projectId: string,
-    input: CreateEnvironmentInput,
-  ): Promise<EnvironmentRecord> {
-    const projectRows = await this.client<{ id: string }[]>`
-      select p.id from projects p where p.id = ${projectId} and p.tenant_id = ${tenantId}
-    `;
-    if (!projectRows[0]) {
-      throw new HierarchyNotFoundError("Project not found");
-    }
-    const environmentId = `env_${randomUUID()}`;
-    try {
-      const rows = await this.client<DatabaseEnvironmentRow[]>`
-        insert into environments (id, project_id, kind, status, subject_hash_key_version)
-        values (${environmentId}, ${projectId}, ${input.kind}, 'active', 1)
-        returning id, project_id as "projectId", kind, status,
-                  subject_hash_key_version as "subjectHashKeyVersion",
-                  created_at as "createdAt"
-      `;
-      return normalizeCreatedAt(rows[0]);
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new EnvironmentConflictError(
-          "This project already has that environment kind",
-        );
-      }
-      throw error;
-    }
-  }
-}
-
-function isUniqueViolation(error: unknown): error is { code: string } {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "23505"
-  );
-}
-
-function normalizeCreatedAt<T extends { createdAt: Date | string }>(
-  record: T,
-): Omit<T, "createdAt"> & { createdAt: string } {
-  const createdAt =
-    record.createdAt instanceof Date
-      ? record.createdAt
-      : new Date(record.createdAt);
-  return {
-    ...record,
-    createdAt: createdAt.toISOString(),
-  };
 }

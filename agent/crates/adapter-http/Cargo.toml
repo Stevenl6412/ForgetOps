@@ -1,0 +1,23 @@
+[package]
+name = "adapter-http"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "=0.1.91"
+base64 = "=0.23.0"
+connector-sdk = { version = "=0.1.0", path = "../connector-sdk" }
+futures-util = "=0.3.33"
+hmac = "=0.13.0"
+jiff = { version = "=0.2.34", default-features = false, features = ["std"] }
+rand = "=0.10.2"
+reqwest = { version = "=0.13.4", default-features = false, features = ["json", "stream", "rustls-no-provider"] }
+rustls = { version = "=0.23.42", default-features = false, features = ["ring", "std"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+serde_json_canonicalizer = "=0.3.2"
+sha2 = "=0.11.0"
+zeroize = "=1.9.0"
+
+[dev-dependencies]
+tokio = { version = "=1.53.1", features = ["macros", "rt-multi-thread", "net", "io-util"] }

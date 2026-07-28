@@ -1,7 +1,9 @@
 [workspace]
 members = [
-  "agent/bin/forgetops-agent",
+  "agent/bin/forgetops-agent", "agent/crates/adapter-http",
   "agent/crates/agent-core",
   "agent/crates/agent-protocol",
+  "agent/crates/agent-store", "agent/crates/connector-sdk", "agent/crates/connector-supabase",
+  "agent/crates/export-builder",
 ]
 resolver = "3"

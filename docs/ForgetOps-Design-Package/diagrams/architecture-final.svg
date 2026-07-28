@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title desc">
+  <title id="title">ForgetOps final MVP architecture</title>
+  <desc id="desc">Trust boundaries and safety controls for the hosted TypeScript control plane, isolated signer, customer-hosted Rust agent, connectors, and encrypted export storage.</desc>
+  <defs>
+    <style>
+      .title { font: 700 34px Inter, "Segoe UI", Arial, sans-serif; fill: #102A43; }
+      .subtitle { font: 400 17px Inter, "Segoe UI", Arial, sans-serif; fill: #486581; }
+      .boundary-title { font: 700 18px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: .8px; }
+      .node-title { font: 700 20px Inter, "Segoe UI", Arial, sans-serif; fill: #102A43; }
+      .node-body { font: 400 15px Inter, "Segoe UI", Arial, sans-serif; fill: #334E68; }
+      .label { font: 600 14px Inter, "Segoe UI", Arial, sans-serif; fill: #243B53; }
+      .small { font: 400 13px Inter, "Segoe UI", Arial, sans-serif; fill: #486581; }
+      .pill { font: 650 14px Inter, "Segoe UI", Arial, sans-serif; fill: #102A43; }
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#102A43" flood-opacity=".12"/>
+    </filter>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#2E74B5"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#23856D"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#627D98"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="1080" fill="#F8FAFC"/>
+  <text x="60" y="62" class="title">ForgetOps — Final MVP Architecture</text>
+  <text x="60" y="92" class="subtitle">Raw identities, connector data, export plaintext, and customer keys remain in the customer data plane.</text>
+
+  <!-- Browser trust boundary -->
+  <rect x="60" y="135" width="300" height="355" rx="20" fill="#FFF7E8" stroke="#D99A2B" stroke-width="2"/>
+  <text x="86" y="172" class="boundary-title" fill="#A15C00">AUTHORIZED BROWSER</text>
+  <rect x="90" y="205" width="240" height="166" rx="14" fill="#FFFFFF" stroke="#E8B65C" filter="url(#shadow)"/>
+  <text x="115" y="244" class="node-title">Admin / Reviewer UI</text>
+  <text x="115" y="276" class="node-body">• Encrypts subject to agent</text>
+  <text x="115" y="302" class="node-body">• Reauthenticates approval</text>
+  <text x="115" y="328" class="node-body">• Holds ephemeral export key</text>
+  <rect x="90" y="397" width="240" height="62" rx="12" fill="#FFFDF8" stroke="#E8B65C"/>
+  <text x="115" y="425" class="label">No server-side export plaintext</text>
+  <text x="115" y="447" class="small">CSP; no third-party scripts</text>
+
+  <!-- Hosted control plane boundary -->
+  <rect x="410" y="110" width="1130" height="420" rx="22" fill="#EDF5FC" stroke="#2E74B5" stroke-width="2"/>
+  <text x="438" y="148" class="boundary-title" fill="#1F5C91">HOSTED CONTROL PLANE</text>
+  <text x="1510" y="148" class="small" text-anchor="end">TypeScript modular monolith</text>
+
+  <rect x="455" y="185" width="285" height="140" rx="14" fill="#FFFFFF" stroke="#8BB8DE" filter="url(#shadow)"/>
+  <text x="480" y="224" class="node-title">Web + API</text>
+  <text x="480" y="256" class="node-body">RBAC · portal · webhooks</text>
+  <text x="480" y="282" class="node-body">Idempotency · OCC · rate limits</text>
+  <text x="480" y="306" class="small">Accepts ciphertext + sanitized metadata</text>
+
+  <rect x="825" y="185" width="300" height="140" rx="14" fill="#FFFFFF" stroke="#8BB8DE" filter="url(#shadow)"/>
+  <text x="850" y="224" class="node-title">Application + Domain</text>
+  <text x="850" y="256" class="node-body">Request state machine</text>
+  <text x="850" y="282" class="node-body">Immutable execution attempts</text>
+  <text x="850" y="306" class="small">Ports isolate domain from infrastructure</text>
+
+  <rect x="1210" y="185" width="280" height="140" rx="14" fill="#FFFFFF" stroke="#8BB8DE" filter="url(#shadow)"/>
+  <text x="1235" y="224" class="node-title">Isolated Signer</text>
+  <text x="1235" y="256" class="node-body">Exact-plan authorization</text>
+  <text x="1235" y="282" class="node-body">Execution lease ≤ 90 seconds</text>
+  <text x="1235" y="306" class="small">No generic sign endpoint</text>
+
+  <rect x="455" y="365" width="425" height="115" rx="14" fill="#F9FCFF" stroke="#8BB8DE"/>
+  <text x="480" y="402" class="node-title">Workers + Outbox</text>
+  <text x="480" y="434" class="node-body">Scheduling · notifications · delivery</text>
+  <text x="480" y="459" class="small">Planning may continue while execution is paused</text>
+
+  <rect x="970" y="365" width="420" height="115" rx="14" fill="#F9FCFF" stroke="#8BB8DE"/>
+  <text x="995" y="402" class="node-title">PostgreSQL + Redis</text>
+  <text x="995" y="434" class="node-body">Ciphertext · metadata · attempts · leases</text>
+  <text x="995" y="459" class="small">Serialized audit-chain heads; no raw subject</text>
+
+  <!-- Customer data plane boundary -->
+  <rect x="60" y="585" width="1480" height="335" rx="22" fill="#EAF8F3" stroke="#23856D" stroke-width="2"/>
+  <text x="88" y="623" class="boundary-title" fill="#176A56">CUSTOMER DATA PLANE</text>
+  <text x="1510" y="623" class="small" text-anchor="end">Customer-managed network and credentials</text>
+
+  <rect x="125" y="665" width="365" height="190" rx="14" fill="#FFFFFF" stroke="#72B9A7" filter="url(#shadow)"/>
+  <text x="150" y="704" class="node-title">Rust Agent</text>
+  <text x="150" y="736" class="node-body">Decrypt · normalize · stable HMAC</text>
+  <text x="150" y="762" class="node-body">Plan · execute · verify · reconcile</text>
+  <text x="150" y="788" class="node-body">Encrypted identity + durable step state</text>
+  <text x="150" y="822" class="small">Outbound channel only; rejects stale scope</text>
+
+  <rect x="620" y="650" width="465" height="220" rx="14" fill="#FFFFFF" stroke="#72B9A7" filter="url(#shadow)"/>
+  <text x="645" y="689" class="node-title">Least-Privilege Connectors</text>
+  <rect x="650" y="720" width="180" height="48" rx="10" fill="#F1FAF7" stroke="#A6D8CB"/>
+  <text x="740" y="750" class="label" text-anchor="middle">Supabase</text>
+  <rect x="865" y="720" width="180" height="48" rx="10" fill="#F1FAF7" stroke="#A6D8CB"/>
+  <text x="955" y="750" class="label" text-anchor="middle">Stripe</text>
+  <rect x="650" y="790" width="180" height="48" rx="10" fill="#F1FAF7" stroke="#A6D8CB"/>
+  <text x="740" y="820" class="label" text-anchor="middle">Clerk</text>
+  <rect x="865" y="790" width="180" height="48" rx="10" fill="#F1FAF7" stroke="#A6D8CB"/>
+  <text x="955" y="820" class="label" text-anchor="middle">Custom Adapter</text>
+
+  <rect x="1215" y="665" width="260" height="190" rx="14" fill="#FFFFFF" stroke="#72B9A7" filter="url(#shadow)"/>
+  <text x="1240" y="704" class="node-title">Export Storage</text>
+  <text x="1240" y="736" class="node-body">Chunked ciphertext</text>
+  <text x="1240" y="762" class="node-body">Encrypted data key</text>
+  <text x="1240" y="788" class="node-body">Short-lived capability</text>
+  <text x="1240" y="822" class="small">Key wrapped on demand to browser</text>
+
+  <!-- Data and control flows -->
+  <path d="M330 255 C380 255 400 255 455 255" fill="none" stroke="#D99A2B" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <text x="392" y="238" class="label" text-anchor="middle">ciphertext</text>
+
+  <path d="M740 255 L825 255" fill="none" stroke="#2E74B5" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <path d="M1125 255 L1210 255" fill="none" stroke="#2E74B5" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <text x="1167" y="238" class="label" text-anchor="middle">scoped claims</text>
+
+  <path d="M975 325 L975 350 L1180 350 L1180 365" fill="none" stroke="#627D98" stroke-width="2.5" marker-end="url(#arrow-gray)"/>
+  <path d="M825 300 L700 365" fill="none" stroke="#627D98" stroke-width="2.5" marker-end="url(#arrow-gray)"/>
+
+  <path d="M1350 325 C1350 520 520 500 365 665" fill="none" stroke="#2E74B5" stroke-width="4" marker-end="url(#arrow-blue)"/>
+  <text x="855" y="548" class="label" text-anchor="middle">signed authorization + renewable online lease</text>
+
+  <path d="M280 665 C260 565 610 535 835 530" fill="none" stroke="#23856D" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#arrow-green)"/>
+  <text x="490" y="569" class="label" text-anchor="middle">sanitized plan + step events</text>
+
+  <path d="M490 760 L620 760" fill="none" stroke="#23856D" stroke-width="4" marker-end="url(#arrow-green)"/>
+  <text x="555" y="742" class="label" text-anchor="middle">scoped calls</text>
+
+  <path d="M1085 760 L1215 760" fill="none" stroke="#23856D" stroke-width="4" marker-end="url(#arrow-green)"/>
+  <text x="1150" y="742" class="label" text-anchor="middle">stream</text>
+
+  <path d="M1345 665 C1345 555 210 555 210 459" fill="none" stroke="#D99A2B" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrow-gray)"/>
+  <text x="1040" y="569" class="label" text-anchor="middle">authorized ciphertext download + wrapped key</text>
+
+  <!-- Safety contract strip -->
+  <text x="60" y="970" class="boundary-title" fill="#334E68">NON-NEGOTIABLE SAFETY CONTRACTS</text>
+  <rect x="60" y="993" width="270" height="55" rx="27.5" fill="#E5EFF8" stroke="#A9C8E3"/>
+  <text x="195" y="1027" class="pill" text-anchor="middle">Stable versioned HMAC</text>
+  <rect x="350" y="993" width="270" height="55" rx="27.5" fill="#E5EFF8" stroke="#A9C8E3"/>
+  <text x="485" y="1027" class="pill" text-anchor="middle">Immutable attempts</text>
+  <rect x="640" y="993" width="270" height="55" rx="27.5" fill="#E5EFF8" stroke="#A9C8E3"/>
+  <text x="775" y="1027" class="pill" text-anchor="middle">Online lease ≤ 90 s</text>
+  <rect x="930" y="993" width="270" height="55" rx="27.5" fill="#E5EFF8" stroke="#A9C8E3"/>
+  <text x="1065" y="1027" class="pill" text-anchor="middle">Crash reconciliation</text>
+  <rect x="1220" y="993" width="320" height="55" rx="27.5" fill="#E5EFF8" stroke="#A9C8E3"/>
+  <text x="1380" y="1027" class="pill" text-anchor="middle">Serialized audit chain</text>
+</svg>

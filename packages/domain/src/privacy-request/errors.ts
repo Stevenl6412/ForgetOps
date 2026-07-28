@@ -1,4 +1,4 @@
-import type { PrivacyRequestStatus } from "@forgetops/contracts";
+import type { PrivacyRequestStatus } from "./status.js";
 
 export class StateConflictError extends Error {
   readonly code = "REQUEST_STATE_CONFLICT";

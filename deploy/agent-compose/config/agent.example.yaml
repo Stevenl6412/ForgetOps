@@ -1,0 +1,14 @@
+control_plane_url: https://forgetops.example.com
+environment_id: env_replace_me
+state_directory: /state
+pairing_token_file: /run/secrets/agent_pairing_token
+state_master_key_file: /run/secrets/state_master_key
+subject_hmac_key_file: /run/secrets/subject_hmac_key
+subject_hmac_key_version: 1
+transport:
+  websocket: true
+  polling_fallback: true
+execution:
+  max_concurrency: 4
+  require_online_lease: true
+  max_lease_seconds: 90

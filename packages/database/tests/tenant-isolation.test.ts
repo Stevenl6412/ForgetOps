@@ -5,6 +5,7 @@ import {
   PrivacyRequestRepository,
   TenantScopeError,
 } from "../src/repositories/privacy-request-repository.js";
+import { inTenantTransaction } from "../src/unit-of-work.js";
 import {
   deterministicPersistence,
   resetDatabase,
@@ -32,21 +33,22 @@ async function insertRequest(
     id: string;
     tenantId: string;
     environmentId: string;
-    idempotencyKey: string;
     subjectHash?: string | null;
     status?: string;
     type?: string;
+    duplicateOverride?: boolean;
   },
 ) {
   await sql`
     insert into privacy_requests (
       id, tenant_id, environment_id, type, source, subject_hash, status,
-      policy_version, deadline_at, created_by_actor_id, version, idempotency_key
+      policy_version, deadline_at, created_by_actor_id, version,
+      duplicate_override
     ) values (
       ${input.id}, ${input.tenantId}, ${input.environmentId},
       ${input.type ?? "delete"}, 'api', ${input.subjectHash ?? null},
       ${input.status ?? "created"}, 1, '2026-08-20T00:00:00.000Z',
-      'usr_1', 1, ${input.idempotencyKey}
+      'usr_1', 1, ${input.duplicateOverride ?? false}
     )
   `;
 }
@@ -74,7 +76,7 @@ describe("tenant isolation and database integrity", () => {
       tenantB.tenantId,
       deterministicPersistence(),
     );
-    await repositoryB.save(request("req_b", tenantB.environmentId));
+    await repositoryB.save(request("req_b", tenantB.environmentId), 0);
     const repositoryA = new PrivacyRequestRepository(
       database.client,
       tenantA.tenantId,
@@ -98,7 +100,7 @@ describe("tenant isolation and database integrity", () => {
       deterministicPersistence(),
     );
 
-    await expect(repositoryA.save(aggregate)).rejects.toBeInstanceOf(
+    await expect(repositoryA.save(aggregate, 0)).rejects.toBeInstanceOf(
       TenantScopeError,
     );
     expect(aggregate.pendingEvents()).toHaveLength(1);
@@ -108,22 +110,26 @@ describe("tenant isolation and database integrity", () => {
     expect(rows[0]?.count).toBe(0);
   });
 
-  it("creates all four required unique indexes", async () => {
+  it("creates all six required integrity indexes", async () => {
     const rows = await database.client`
       select indexname from pg_indexes
       where schemaname = 'public'
         and indexname in (
           'environments_project_kind_uq',
           'agents_one_active_per_environment_uq',
-          'privacy_requests_idempotency_uq',
-          'privacy_requests_one_active_subject_type_uq'
+          'idempotency_records_scope_actor_key_uq',
+          'privacy_requests_one_active_subject_type_uq',
+          'execution_attempts_request_number_uq',
+          'audit_events_environment_sequence_uq'
         )
       order by indexname
     `;
     expect(rows.map((row) => row.indexname)).toEqual([
       "agents_one_active_per_environment_uq",
+      "audit_events_environment_sequence_uq",
       "environments_project_kind_uq",
-      "privacy_requests_idempotency_uq",
+      "execution_attempts_request_number_uq",
+      "idempotency_records_scope_actor_key_uq",
       "privacy_requests_one_active_subject_type_uq",
     ]);
   });
@@ -166,59 +172,138 @@ describe("tenant isolation and database integrity", () => {
     );
   });
 
-  it("enforces environment-scoped idempotency keys", async () => {
-    const hierarchy = await seedTenantHierarchy(database.client, "idem_uq");
-    await insertRequest(database.client, {
-      id: "req_idem_1",
-      ...hierarchy,
-      idempotencyKey: "same-key",
-    });
-
-    await expect(
-      insertRequest(database.client, {
-        id: "req_idem_2",
-        ...hierarchy,
-        idempotencyKey: "same-key",
-      }),
-    ).rejects.toMatchObject({
-      code: "23505",
-      constraint_name: "privacy_requests_idempotency_uq",
-    });
-  });
-
-  it("allows terminal duplicates but rejects duplicate active subject requests", async () => {
+  it("treats only completed and cancelled requests as permanently terminal", async () => {
     const hierarchy = await seedTenantHierarchy(database.client, "subject_uq");
     await insertRequest(database.client, {
       id: "req_terminal_1",
       ...hierarchy,
-      idempotencyKey: "terminal-1",
       subjectHash: "hmac:subject",
       status: "completed",
     });
     await insertRequest(database.client, {
       id: "req_terminal_2",
       ...hierarchy,
-      idempotencyKey: "terminal-2",
       subjectHash: "hmac:subject",
-      status: "failed",
+      status: "cancelled",
     });
     await insertRequest(database.client, {
       id: "req_active_1",
       ...hierarchy,
-      idempotencyKey: "active-1",
       subjectHash: "hmac:subject",
+      status: "failed",
     });
 
     await expect(
       insertRequest(database.client, {
         id: "req_active_2",
         ...hierarchy,
-        idempotencyKey: "active-2",
         subjectHash: "hmac:subject",
       }),
     ).rejects.toMatchObject({
       code: "23505",
       constraint_name: "privacy_requests_one_active_subject_type_uq",
     });
+  });
+
+  it("allows an explicitly audited duplicate override", async () => {
+    const hierarchy = await seedTenantHierarchy(database.client, "override");
+    await insertRequest(database.client, {
+      id: "req_ordinary",
+      ...hierarchy,
+      subjectHash: "hmac:subject",
+    });
+
+    await insertRequest(database.client, {
+      id: "req_override",
+      ...hierarchy,
+      subjectHash: "hmac:subject",
+      duplicateOverride: true,
+    });
+
+    expect(
+      await database.client`
+        select id, duplicate_override
+        from privacy_requests
+        order by id
+      `,
+    ).toEqual([
+      { id: "req_ordinary", duplicate_override: false },
+      { id: "req_override", duplicate_override: true },
+    ]);
+  });
+
+  it("enforces transaction-local tenant RLS for reads and writes", async () => {
+    const tenantA = await seedTenantHierarchy(database.client, "rls_a");
+    const tenantB = await seedTenantHierarchy(database.client, "rls_b");
+    await insertRequest(database.client, {
+      id: "req_rls_b",
+      ...tenantB,
+    });
+
+    await inTenantTransaction(database.client, tenantA.tenantId, async (tx) => {
+      expect(
+        await tx`select id from privacy_requests where id = 'req_rls_b'`,
+      ).toEqual([]);
+    });
+    await expect(
+      inTenantTransaction(
+        database.client,
+        tenantA.tenantId,
+        async (transaction) =>
+          transaction`
+          insert into privacy_requests (
+            id, tenant_id, environment_id, type, source, status, policy_version,
+            deadline_at, created_by_actor_id, version
+          ) values (
+            'req_cross_tenant', ${tenantB.tenantId}, ${tenantB.environmentId},
+            'delete', 'api', 'created', 1, '2026-08-20T00:00:00.000Z',
+            'usr_1', 1
+          )
+        `,
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("gives every tenant-owned table a USING and WITH CHECK policy", async () => {
+    const rows = await database.client`
+      select c.relname
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      join pg_policy p on p.polrelid = c.oid
+      where n.nspname = 'public'
+        and c.relname in (
+          'tenants',
+          'projects',
+          'environments',
+          'agent_pairing_tokens',
+          'agents',
+          'agent_message_receipts',
+          'privacy_requests',
+          'execution_attempts',
+          'agent_jobs',
+          'idempotency_records',
+          'audit_chain_heads',
+          'audit_events',
+          'outbox_events'
+        )
+        and p.polqual is not null
+        and p.polwithcheck is not null
+      order by c.relname
+    `;
+    expect(rows.map(({ relname }) => relname)).toEqual([
+      "agent_jobs",
+      "agent_message_receipts",
+      "agent_pairing_tokens",
+      "agents",
+      "audit_chain_heads",
+      "audit_events",
+      "environments",
+      "execution_attempts",
+      "idempotency_records",
+      "outbox_events",
+      "privacy_requests",
+      "projects",
+      "tenants",
+    ]);
   });
 });

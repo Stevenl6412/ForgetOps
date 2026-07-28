@@ -16,22 +16,34 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     .withPassword("forgetops")
     .start();
   const connection = createDatabase(container.getConnectionUri());
-  const migration = await readFile(
-    fileURLToPath(new URL("../migrations/0001_initial.sql", import.meta.url)),
-    "utf8",
-  );
-  await connection.client.unsafe(migration);
+  for (const migrationName of [
+    "0001_initial.sql",
+    "0002_environment_subject_canonicalization.sql",
+    "0003_agent_pairing_replacement.sql",
+    "0004_agent_gateway_rls.sql",
+    "0005_subject_identity_binding.sql",
+    "0006_audit_and_job_kind_upgrades.sql",
+  ]) {
+    const migration = await readFile(
+      fileURLToPath(new URL(`../migrations/${migrationName}`, import.meta.url)),
+      "utf8",
+    );
+    await connection.client.unsafe(migration);
+  }
   return { ...connection, container };
 }
 
-export async function stopTestDatabase(database: TestDatabase): Promise<void> {
+export async function stopTestDatabase(
+  database: TestDatabase | undefined,
+): Promise<void> {
+  if (!database) return;
   await database.close();
   await database.container.stop();
 }
 
 export async function resetDatabase(sql: Sql): Promise<void> {
   await sql.unsafe(
-    "truncate table outbox_events, audit_events, privacy_requests, agents, environments, projects, tenants cascade",
+    "truncate table outbox_events, audit_events, audit_chain_heads, idempotency_records, agent_jobs, subject_identity_aliases, subject_envelopes, agent_transport_sessions, execution_attempts, privacy_requests, agents, agent_pairing_tokens, environments, projects, tenants cascade",
   );
 }
 

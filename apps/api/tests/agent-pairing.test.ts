@@ -7,12 +7,14 @@ import {
 } from "../src/index.js";
 import {
   AgentAlreadyActiveError,
+  AgentReplacementBlockedActiveWorkError,
   AgentReplacementRequiresOwnerConfirmationError,
   InMemoryPairingRepository,
   InvalidAgentKeyError,
   PairingService,
   PairingTokenInvalidError,
   createPairingProofPayload,
+  keyIdForPublicKey,
   type AgentRegistration,
 } from "../src/modules/agents/pairing-service.js";
 
@@ -44,6 +46,9 @@ function registration(
     environmentId,
     publicSigningKey: generated.publicSigningKey,
     publicEncryptionKey: generated.publicEncryptionKey,
+    signingKeyId: keyIdForPublicKey("ed25519", generated.publicSigningKey),
+    encryptionKeyId: keyIdForPublicKey("x25519", generated.publicEncryptionKey),
+    subjectHmacKeyVersion: 1,
     version: "1.0.0",
     protocolVersion: "1.0",
     instanceFingerprint: "sha256:instance-a",
@@ -224,6 +229,93 @@ describe("agent pairing", () => {
     expect(await pairing.getAgent("tenant_a", first.id)).toMatchObject({
       status: "revoked",
     });
+  });
+
+  it("blocks drain replacement while active work exists and force replacement reviews it", async () => {
+    const hierarchy = fixture();
+    const project = await hierarchy.createProject("tenant_a", {
+      name: "Project",
+      slug: "project",
+    });
+    const environment = await hierarchy.createEnvironment(
+      "tenant_a",
+      project.id,
+      { kind: "production" },
+    );
+    const repository = new InMemoryPairingRepository(hierarchy);
+    const pairing = new PairingService(repository);
+    const firstToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: environment.id,
+      actorId: "owner_a",
+    });
+    const first = await pairing.consume(
+      firstToken.plaintext,
+      registration(firstToken.plaintext, environment.id),
+    );
+    repository.markSubjectEnvelopeActive(environment.id, "req_1");
+    repository.markAttemptRunning(environment.id, "req_2");
+    repository.addPendingCiphertext(first.id, "job_1", "old-ciphertext");
+
+    const drainToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: environment.id,
+      actorId: "owner_a",
+      replacementMode: "drain",
+    });
+    await expect(
+      pairing.consume(
+        drainToken.plaintext,
+        registration(drainToken.plaintext, environment.id),
+      ),
+    ).rejects.toBeInstanceOf(AgentReplacementBlockedActiveWorkError);
+    expect(await pairing.getAgent("tenant_a", first.id)).toMatchObject({
+      status: "pairing",
+    });
+
+    const forceToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: environment.id,
+      actorId: "owner_a",
+      replacementMode: "force",
+    });
+    const replacement = await pairing.consume(
+      forceToken.plaintext,
+      registration(forceToken.plaintext, environment.id),
+    );
+    expect(replacement.id).not.toBe(first.id);
+    expect(await pairing.getAgent("tenant_a", first.id)).toMatchObject({
+      status: "revoked",
+    });
+    expect(repository.requestStatus("req_1")).toBe("needs_review");
+    expect(repository.requestStatus("req_2")).toBe("needs_review");
+    expect(repository.pendingCiphertext("job_1")).toBeNull();
+  });
+
+  it("rejects a key ID that does not hash to the submitted public key", async () => {
+    const hierarchy = fixture();
+    const project = await hierarchy.createProject("tenant_a", {
+      name: "Project",
+      slug: "project",
+    });
+    const environment = await hierarchy.createEnvironment(
+      "tenant_a",
+      project.id,
+      { kind: "production" },
+    );
+    const pairing = new PairingService(
+      new InMemoryPairingRepository(hierarchy),
+    );
+    const issued = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: environment.id,
+      actorId: "owner_a",
+    });
+    const invalid = registration(issued.plaintext, environment.id);
+    invalid.signingKeyId = "ed25519:sha256:tampered";
+    await expect(
+      pairing.consume(issued.plaintext, invalid),
+    ).rejects.toBeInstanceOf(InvalidAgentKeyError);
   });
 
   it("returns stable already-active error for the same active identity", async () => {

@@ -3,7 +3,7 @@ import {
   requireTenantContext,
   type AuthContextProvider,
 } from "../../auth-context.js";
-import type { HierarchyStore } from "../../hierarchy-store.js";
+import type { TenantHierarchyUseCases } from "@forgetops/application/tenant-hierarchy";
 import { tenantParamsSchema } from "../../route-schema.js";
 
 interface TenantParams {
@@ -12,7 +12,10 @@ interface TenantParams {
 
 export function registerTenantRoutes(
   app: FastifyInstance,
-  dependencies: { authProvider: AuthContextProvider; store: HierarchyStore },
+  dependencies: {
+    authProvider: AuthContextProvider;
+    hierarchy: TenantHierarchyUseCases;
+  },
 ): void {
   app.get<{ Params: TenantParams }>(
     "/v1/tenants/:tenantId",
@@ -26,7 +29,7 @@ export function registerTenantRoutes(
       );
       if (!context) return;
 
-      const tenant = await dependencies.store.getTenant(context.tenantId);
+      const tenant = await dependencies.hierarchy.getTenant(context.tenantId);
       if (!tenant)
         return reply.code(404).send({
           error: { code: "NOT_FOUND", message: "Resource not found" },

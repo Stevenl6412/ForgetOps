@@ -1,0 +1,8 @@
+{
+  "name": "@forgetops/testing",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "type": "module"
+}

@@ -1,0 +1,22 @@
+{
+  "publicKey": "uvxxvq06xeS2PpyCFu5xo0quxlci7tvKcotOmzzM45Y",
+  "canonicalBytes": "eyJhZ2VudElkIjoiYWd0X2ZpeHR1cmUiLCJkaXJlY3Rpb24iOiJjb250cm9sX3RvX2FnZW50IiwiZW52aXJvbm1lbnRJZCI6ImVudl9maXh0dXJlIiwia2V5SWQiOiJjcC1hZ2VudC1tZXNzYWdlLWtleS0xIiwibWVzc2FnZUlkIjoibXNnX3RzX2ZpeHR1cmUiLCJtZXNzYWdlVHlwZSI6ImpvYi5hdmFpbGFibGUiLCJwYXlsb2FkIjp7ImF0dGVtcHQiOjEsImpvYklkIjoiam9iX2ZpeHR1cmUiLCJraW5kIjoicGxhbiJ9LCJwcm90b2NvbFZlcnNpb24iOiIxLjAiLCJzZW50QXQiOiIyMDI2LTA3LTIzVDA4OjAwOjAxLjAwMFoiLCJzZXF1ZW5jZSI6IjExIiwidHlwZSI6ImZvcmdldG9wcy5hZ2VudC1tZXNzYWdlIn0",
+  "message": {
+    "type": "forgetops.agent-message",
+    "protocolVersion": "1.0",
+    "messageType": "job.available",
+    "messageId": "msg_ts_fixture",
+    "keyId": "cp-agent-message-key-1",
+    "environmentId": "env_fixture",
+    "agentId": "agt_fixture",
+    "direction": "control_to_agent",
+    "sequence": "11",
+    "sentAt": "2026-07-23T08:00:01.000Z",
+    "payload": {
+      "attempt": 1,
+      "jobId": "job_fixture",
+      "kind": "plan"
+    },
+    "signature": "Dy4YoGuCWR7Vwk-1kGoevwrNs3yPFyTcdh8llu2h5FxJatGLWjb5ycK8P7PZW9V5l-dlp7_RGSblIJnR0U5EBw"
+  }
+}

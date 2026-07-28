@@ -1,0 +1,13 @@
+{
+  "name": "@forgetops/observability",
+  "private": true,
+  "type": "module",
+  "exports": "./src/logger.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1"
+  }
+}

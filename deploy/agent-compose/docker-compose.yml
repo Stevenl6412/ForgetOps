@@ -1,0 +1,43 @@
+services:
+  agent:
+    image: ${FORGETOPS_AGENT_IMAGE:?Set a signed agent image pinned by sha256 digest}
+    command:
+      - run
+      - --config
+      - /etc/forgetops/agent.yaml
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=256m,mode=0700
+    volumes:
+      - agent-state:/state
+      - ./config/agent.yaml:/etc/forgetops/agent.yaml:ro
+    secrets:
+      - agent_pairing_token
+      - state_master_key
+      - subject_hmac_key
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/forgetops-agent", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agent-egress
+
+volumes:
+  agent-state:
+
+networks:
+  agent-egress:
+    driver: bridge
+
+secrets:
+  agent_pairing_token:
+    file: ${FORGETOPS_PAIRING_TOKEN_FILE:?Set pairing token file}
+  state_master_key:
+    file: ${FORGETOPS_STATE_MASTER_KEY_FILE:?Set state master key file}
+  subject_hmac_key:
+    file: ${FORGETOPS_SUBJECT_HMAC_KEY_FILE:?Set subject HMAC key file}

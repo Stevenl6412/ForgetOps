@@ -4,10 +4,8 @@ import {
   requireTenantContext,
   type AuthContextProvider,
 } from "../../auth-context.js";
-import type {
-  CreateEnvironmentInput,
-  HierarchyStore,
-} from "../../hierarchy-store.js";
+import type { CreateEnvironmentInput } from "../../hierarchy-store.js";
+import type { TenantHierarchyUseCases } from "@forgetops/application/tenant-hierarchy";
 import {
   createEnvironmentBodySchema,
   environmentParamsSchema,
@@ -24,7 +22,10 @@ interface EnvironmentParams {
 
 export function registerEnvironmentRoutes(
   app: FastifyInstance,
-  dependencies: { authProvider: AuthContextProvider; store: HierarchyStore },
+  dependencies: {
+    authProvider: AuthContextProvider;
+    hierarchy: TenantHierarchyUseCases;
+  },
 ): void {
   app.get<{ Params: ProjectParams }>(
     "/v1/projects/:projectId/environments",
@@ -36,7 +37,7 @@ export function registerEnvironmentRoutes(
         dependencies.authProvider,
       );
       if (!context) return;
-      const project = await dependencies.store.getProject(
+      const project = await dependencies.hierarchy.getProject(
         context.tenantId,
         request.params.projectId,
       );
@@ -45,7 +46,7 @@ export function registerEnvironmentRoutes(
           error: { code: "NOT_FOUND", message: "Resource not found" },
         });
       return {
-        environments: await dependencies.store.listEnvironments(
+        environments: await dependencies.hierarchy.listEnvironments(
           context.tenantId,
           project.id,
         ),
@@ -69,7 +70,7 @@ export function registerEnvironmentRoutes(
         "owner",
       );
       if (!context) return;
-      const environment = await dependencies.store.createEnvironment(
+      const environment = await dependencies.hierarchy.createEnvironment(
         context.tenantId,
         request.params.projectId,
         request.body,
@@ -88,7 +89,7 @@ export function registerEnvironmentRoutes(
         dependencies.authProvider,
       );
       if (!context) return;
-      const environment = await dependencies.store.getEnvironment(
+      const environment = await dependencies.hierarchy.getEnvironment(
         context.tenantId,
         request.params.environmentId,
       );

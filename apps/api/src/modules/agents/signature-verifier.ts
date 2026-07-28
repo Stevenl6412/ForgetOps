@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
+import canonicalize from "canonicalize";
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const KEY_BYTES = 32;
@@ -10,6 +11,9 @@ export interface PairingProofFields {
   environmentId: string;
   publicSigningKey: string;
   publicEncryptionKey: string;
+  signingKeyId: string;
+  encryptionKeyId: string;
+  subjectHmacKeyVersion: number;
   version: string;
   protocolVersion: string;
   instanceFingerprint: string;
@@ -20,15 +24,30 @@ export interface PairingProofFields {
  * replayed with another issued token or environment.
  */
 export function createPairingProofPayload(fields: PairingProofFields): string {
-  return JSON.stringify({
+  const payload = canonicalize({
     environmentId: fields.environmentId,
     instanceFingerprint: fields.instanceFingerprint,
     pairingToken: fields.pairingToken,
     protocolVersion: fields.protocolVersion,
     publicEncryptionKey: fields.publicEncryptionKey,
     publicSigningKey: fields.publicSigningKey,
+    encryptionKeyId: fields.encryptionKeyId,
+    signingKeyId: fields.signingKeyId,
+    subjectHmacKeyVersion: fields.subjectHmacKeyVersion,
     version: fields.version,
   });
+  if (payload === undefined) {
+    throw new TypeError("Pairing proof payload must be canonical JSON");
+  }
+  return payload;
+}
+
+export function keyIdForPublicKey(
+  purpose: "ed25519" | "x25519",
+  publicKey: string,
+): string {
+  const keyBytes = decodeAgentKey(publicKey);
+  return `${purpose}:sha256:${createHash("sha256").update(keyBytes).digest("hex")}`;
 }
 
 export interface VerifyAgentProofInput {

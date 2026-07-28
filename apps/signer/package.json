@@ -1,0 +1,23 @@
+{
+  "name": "@forgetops/signer",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./authorization-policy": "./src/authorization-policy.ts",
+    "./authorization-signer": "./src/authorization-signer.ts",
+    "./execution-lease-signer": "./src/execution-lease-signer.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@forgetops/contracts": "workspace:*",
+    "canonicalize": "3.0.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1"
+  }
+}

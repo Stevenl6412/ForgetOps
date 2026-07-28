@@ -1,0 +1,9 @@
+[package]
+name = "connector-sdk"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+agent-core = { version = "=0.1.0", path = "../agent-core" }
+async-trait = "=0.1.91"
+serde = { version = "=1.0.229", features = ["derive"] }

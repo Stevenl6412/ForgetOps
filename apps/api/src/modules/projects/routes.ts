@@ -4,10 +4,8 @@ import {
   requireTenantContext,
   type AuthContextProvider,
 } from "../../auth-context.js";
-import type {
-  CreateProjectInput,
-  HierarchyStore,
-} from "../../hierarchy-store.js";
+import type { CreateProjectInput } from "../../hierarchy-store.js";
+import type { TenantHierarchyUseCases } from "@forgetops/application/tenant-hierarchy";
 import {
   createProjectBodySchema,
   projectParamsSchema,
@@ -24,7 +22,10 @@ interface ProjectParams {
 
 export function registerProjectRoutes(
   app: FastifyInstance,
-  dependencies: { authProvider: AuthContextProvider; store: HierarchyStore },
+  dependencies: {
+    authProvider: AuthContextProvider;
+    hierarchy: TenantHierarchyUseCases;
+  },
 ): void {
   app.get<{ Params: TenantParams }>(
     "/v1/tenants/:tenantId/projects",
@@ -37,13 +38,13 @@ export function registerProjectRoutes(
         request.params.tenantId,
       );
       if (!context) return;
-      if (!(await dependencies.store.getTenant(context.tenantId))) {
+      if (!(await dependencies.hierarchy.getTenant(context.tenantId))) {
         return reply.code(404).send({
           error: { code: "NOT_FOUND", message: "Resource not found" },
         });
       }
       return {
-        projects: await dependencies.store.listProjects(context.tenantId),
+        projects: await dependencies.hierarchy.listProjects(context.tenantId),
       };
     },
   );
@@ -60,7 +61,7 @@ export function registerProjectRoutes(
         request.params.tenantId,
       );
       if (!context) return;
-      const project = await dependencies.store.createProject(
+      const project = await dependencies.hierarchy.createProject(
         context.tenantId,
         request.body,
       );
@@ -78,7 +79,7 @@ export function registerProjectRoutes(
         dependencies.authProvider,
       );
       if (!context) return;
-      const project = await dependencies.store.getProject(
+      const project = await dependencies.hierarchy.getProject(
         context.tenantId,
         request.params.projectId,
       );

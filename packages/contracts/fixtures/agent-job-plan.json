@@ -1,9 +1,12 @@
 {
+  "type": "forgetops.agent-message",
   "protocolVersion": "1.0",
   "messageType": "job.available",
   "messageId": "msg_01demo",
+  "keyId": "cp-agent-message-key-1",
   "environmentId": "env_01demo",
   "agentId": "agt_01demo",
+  "direction": "control_to_agent",
   "sequence": "1042",
   "sentAt": "2026-07-21T10:00:00Z",
   "payload": {
@@ -33,5 +36,5 @@
       ]
     }
   },
-  "signature": "c2FuaXRpemVkLXB1YmxpYy1zaWduYXR1cmUtZml4dHVyZQ"
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 }

@@ -1,0 +1,25 @@
+{
+  "canonicalizationVersion": 1,
+  "cases": [
+    {
+      "identity": {
+        "applicationUserId": "  Customer-42  ",
+        "email": "  Canary@Example.COM  "
+      },
+      "primary": "app_user_id:Customer-42",
+      "aliases": [
+        {
+          "identifierKind": "email",
+          "canonical": "email:canary@example.com"
+        }
+      ]
+    },
+    {
+      "identity": {
+        "email": "  Canary@Example.COM  "
+      },
+      "primary": "email:canary@example.com",
+      "aliases": []
+    }
+  ]
+}

@@ -55,7 +55,7 @@ describe("PrivacyRequestRepository", () => {
       deterministicPersistence(),
     );
 
-    await repository.save(aggregate);
+    await repository.save(aggregate, 0);
 
     const requests = await database.client`
       select id, tenant_id, environment_id, status, version, subject_hash
@@ -94,6 +94,31 @@ describe("PrivacyRequestRepository", () => {
     expect(aggregate.pendingEvents()).toEqual([]);
   });
 
+  it("matches the audit hash known vector", async () => {
+    const { tenantId, environmentId } = await seedTenantHierarchy(
+      database.client,
+      "hash_vector",
+    );
+    const aggregate = request("req_hash_vector", environmentId);
+    await new PrivacyRequestRepository(
+      database.client,
+      tenantId,
+      deterministicPersistence(),
+    ).save(aggregate, 0);
+
+    const rows = await database.client`
+      select event_hash
+      from audit_events
+      where request_id = 'req_hash_vector'
+    `;
+    expect(rows).toEqual([
+      {
+        event_hash:
+          "4c77a2f81002ee10cfe5fb906b6bcea81c084ce591f9dfc95b41b987e513e26f",
+      },
+    ]);
+  });
+
   it("rolls back request and audit writes when outbox insertion fails", async () => {
     const { tenantId, environmentId } = await seedTenantHierarchy(
       database.client,
@@ -117,7 +142,7 @@ describe("PrivacyRequestRepository", () => {
     `);
 
     try {
-      await expect(repository.save(aggregate)).rejects.toThrow(
+      await expect(repository.save(aggregate, 0)).rejects.toThrow(
         "forced outbox failure",
       );
       const counts = await database.client`
@@ -162,13 +187,88 @@ describe("PrivacyRequestRepository", () => {
       database.client,
       tenantId,
       deterministicPersistence(),
-    ).save(aggregate);
+    ).save(aggregate, 0);
 
     const rows = await database.client`
       select actor_type, actor_id from audit_events
       where action = 'ExecutionPlanApproved'
     `;
     expect(rows).toEqual([{ actor_type: "user", actor_id: "usr_approver" }]);
+  });
+
+  it("persists immutable attempts and advances only the current retry", async () => {
+    const { tenantId, environmentId } = await seedTenantHierarchy(
+      database.client,
+      "attempts",
+    );
+    const aggregate = request("req_attempts", environmentId);
+    aggregate.markIdentityVerified({ actorId: "usr_1" });
+    aggregate.beginPlanning({ agentId: "agt_1" });
+    const plan = {
+      planId: "plan_1",
+      planVersion: 1,
+      planFingerprint: "sha256:plan",
+    };
+    aggregate.attachPlan({ ...plan, requiresApproval: true });
+    aggregate.approvePlan({ ...plan, decidedBy: "usr_approver" });
+    aggregate.authorizeExecution({
+      ...plan,
+      agentId: "agt_1",
+      attemptId: "att_1",
+      allowedStepIds: ["step_1", "step_failed"],
+    });
+    aggregate.markExecuting({ agentId: "agt_1" });
+    aggregate.markPartial({ affectedCount: 1, failedCount: 1 });
+    const repository = new PrivacyRequestRepository(
+      database.client,
+      tenantId,
+      deterministicPersistence(),
+    );
+    await repository.save(aggregate, 0);
+
+    aggregate.beginRetry({
+      attemptId: "att_2",
+      allowedStepIds: ["step_failed"],
+      expectedVersion: aggregate.version,
+    });
+    await repository.save(aggregate, 8);
+    aggregate.markExecuting({ agentId: "agt_1" });
+    await repository.save(aggregate, 9);
+
+    const attempts = await database.client`
+      select id, attempt_number, kind, allowed_step_ids, status, completed_at
+      from execution_attempts
+      where request_id = 'req_attempts'
+      order by attempt_number
+    `;
+    expect(attempts).toEqual([
+      expect.objectContaining({
+        id: "att_1",
+        attempt_number: 1,
+        kind: "initial",
+        allowed_step_ids: ["step_1", "step_failed"],
+        status: "partially_succeeded",
+        completed_at: expect.any(String),
+      }),
+      expect.objectContaining({
+        id: "att_2",
+        attempt_number: 2,
+        kind: "retry",
+        allowed_step_ids: ["step_failed"],
+        status: "running",
+        completed_at: null,
+      }),
+    ]);
+    expect(
+      await database.client`
+        select current_attempt_id
+        from privacy_requests
+        where id = 'req_attempts'
+      `,
+    ).toEqual([{ current_attempt_id: "att_2" }]);
+    await expect(database.client`
+      update execution_attempts set status = 'failed' where id = 'att_1'
+    `).rejects.toMatchObject({ code: "55000" });
   });
 
   it("rejects stale aggregate versions and retains their events", async () => {
@@ -183,13 +283,13 @@ describe("PrivacyRequestRepository", () => {
     );
     const current = request("req_stale", environmentId);
     const stale = request("req_stale", environmentId);
-    await repository.save(current);
+    await repository.save(current, 0);
     stale.markEventsCommitted(1);
     current.markIdentityVerified({ actorId: "usr_current" });
     stale.markIdentityVerified({ actorId: "usr_stale" });
-    await repository.save(current);
+    await repository.save(current, 1);
 
-    await expect(repository.save(stale)).rejects.toBeInstanceOf(
+    await expect(repository.save(stale, 1)).rejects.toBeInstanceOf(
       PrivacyRequestConcurrencyError,
     );
     expect(stale.pendingEvents().map((event) => event.type)).toEqual([
@@ -211,10 +311,10 @@ describe("PrivacyRequestRepository", () => {
       tenantId,
       deterministicPersistence(),
     );
-    await repository.save(request("req_duplicate", environmentId));
+    await repository.save(request("req_duplicate", environmentId), 0);
     const duplicate = request("req_duplicate", environmentId);
 
-    await expect(repository.save(duplicate)).rejects.toBeInstanceOf(
+    await expect(repository.save(duplicate, 0)).rejects.toBeInstanceOf(
       PrivacyRequestConcurrencyError,
     );
     expect(duplicate.pendingEvents()).toHaveLength(1);
@@ -230,7 +330,7 @@ describe("PrivacyRequestRepository", () => {
       tenantId,
       deterministicPersistence(),
     );
-    await repository.save(request("req_audit", environmentId));
+    await repository.save(request("req_audit", environmentId), 0);
 
     await expect(
       database.client`update audit_events set action = 'tampered'`,

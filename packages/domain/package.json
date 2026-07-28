@@ -7,6 +7,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@forgetops/contracts": "workspace:*"
+    "canonicalize": "3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1"
   }
 }

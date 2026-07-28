@@ -1,5 +1,5 @@
 .superpowers/
-docs/forgetops-package/
+docs/ForgetOps-Design-Package/
 node_modules/
 .turbo/
 target/

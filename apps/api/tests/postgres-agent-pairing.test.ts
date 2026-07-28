@@ -11,6 +11,7 @@ import {
   AgentReplacementRequiresOwnerConfirmationError,
   PostgresPairingRepository,
   PairingService,
+  keyIdForPublicKey,
   type AgentRegistration,
 } from "../src/modules/agents/pairing-service.js";
 import { createPairingProofPayload } from "../src/modules/agents/signature-verifier.js";
@@ -25,21 +26,30 @@ beforeAll(async () => {
     .withPassword("forgetops")
     .start();
   database = createDatabase(container.getConnectionUri());
-  const migration = await readFile(
-    fileURLToPath(
-      new URL(
-        "../../../packages/database/migrations/0001_initial.sql",
-        import.meta.url,
+  for (const migrationName of [
+    "0001_initial.sql",
+    "0002_environment_subject_canonicalization.sql",
+    "0003_agent_pairing_replacement.sql",
+    "0004_agent_gateway_rls.sql",
+    "0005_subject_identity_binding.sql",
+    "0006_audit_and_job_kind_upgrades.sql",
+  ]) {
+    const migration = await readFile(
+      fileURLToPath(
+        new URL(
+          `../../../packages/database/migrations/${migrationName}`,
+          import.meta.url,
+        ),
       ),
-    ),
-    "utf8",
-  );
-  await database.client.unsafe(migration);
+      "utf8",
+    );
+    await database.client.unsafe(migration);
+  }
 }, 120_000);
 
 beforeEach(async () => {
   await database.client.unsafe(
-    "truncate table agent_pairing_tokens, outbox_events, audit_events, privacy_requests, agents, environments, projects, tenants cascade",
+    "truncate table agent_pairing_tokens, subject_envelopes, agent_jobs, outbox_events, audit_events, privacy_requests, agents, environments, projects, tenants cascade",
   );
   await database.client`
     insert into tenants (id, name, plan) values ('tenant_a', 'Tenant A', 'trial')
@@ -161,6 +171,101 @@ describe("PostgresPairingRepository", () => {
     );
     expect(rows.filter((row) => row.status !== "revoked")).toHaveLength(1);
   });
+
+  it("drains safely and force-replaces by destroying old ciphertext", async () => {
+    const pairing = new PairingService(
+      new PostgresPairingRepository(database.client),
+    );
+    const firstToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: "env_a",
+      actorId: "owner_a",
+    });
+    const first = await pairing.consume(
+      firstToken.plaintext,
+      validRegistration(firstToken.plaintext, "env_a"),
+    );
+    await database.client`
+      insert into privacy_requests (
+        id, tenant_id, environment_id, type, source, status,
+        policy_version, deadline_at, created_by_actor_id, version
+      ) values (
+        'req_replace', 'tenant_a', 'env_a', 'delete', 'admin',
+        'executing', 1, now() + interval '1 day', 'owner_a', 1
+      )
+    `;
+    await database.client`
+      insert into execution_attempts (
+        id, tenant_id, environment_id, request_id, attempt_number, kind,
+        plan_id, plan_version, plan_fingerprint, allowed_step_ids,
+        status, created_at
+      ) values (
+        'attempt_replace', 'tenant_a', 'env_a', 'req_replace', 1, 'initial',
+        'plan_1', 1, 'sha256:plan', '["step_1"]',
+        'running', now() - interval '1 minute'
+      )
+    `;
+    await database.client`
+      insert into subject_envelopes (
+        request_id, tenant_id, environment_id, ciphertext,
+        encryption_key_id, expires_at
+      ) values (
+        'req_replace', 'tenant_a', 'env_a', 'old-ciphertext',
+        ${first.encryptionKeyId}, now() + interval '1 hour'
+      )
+    `;
+    await database.client`
+      insert into agent_jobs (
+        id, tenant_id, request_id, environment_id, kind,
+        payload_ciphertext, available_at, expires_at
+      ) values (
+        'job_replace', 'tenant_a', 'req_replace', 'env_a', 'bind_subject',
+        'old-ciphertext', now() - interval '1 minute', now() + interval '1 hour'
+      )
+    `;
+
+    const drainToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: "env_a",
+      actorId: "owner_a",
+      replacementMode: "drain",
+    });
+    await expect(
+      pairing.consume(
+        drainToken.plaintext,
+        validRegistration(drainToken.plaintext, "env_a"),
+      ),
+    ).rejects.toMatchObject({
+      code: "AGENT_REPLACEMENT_BLOCKED_ACTIVE_WORK",
+    });
+
+    const forceToken = await pairing.createToken({
+      tenantId: "tenant_a",
+      environmentId: "env_a",
+      actorId: "owner_a",
+      replacementMode: "force",
+    });
+    const replacement = await pairing.consume(
+      forceToken.plaintext,
+      validRegistration(forceToken.plaintext, "env_a"),
+    );
+    expect(replacement.id).not.toBe(first.id);
+    const rows = await database.client`
+      select
+        (select status from agents where id = ${first.id}) as old_status,
+        (select status from privacy_requests where id = 'req_replace') as request_status,
+        (select status from execution_attempts where id = 'attempt_replace') as attempt_status,
+        (select count(*)::int from subject_envelopes where request_id = 'req_replace') as envelope_count,
+        (select payload_ciphertext from agent_jobs where id = 'job_replace') as payload_ciphertext
+    `;
+    expect(rows[0]).toMatchObject({
+      old_status: "revoked",
+      request_status: "needs_review",
+      attempt_status: "needs_review",
+      envelope_count: 0,
+      payload_ciphertext: null,
+    });
+  });
 });
 
 function validRegistration(
@@ -180,10 +285,18 @@ function validRegistration(
       .export({ type: "spki", format: "der" })
       .subarray(-32)
       .toString("base64url"),
+    signingKeyId: "",
+    encryptionKeyId: "",
+    subjectHmacKeyVersion: 1,
     version: "1.0.0",
     protocolVersion: "1.0",
     instanceFingerprint: "sha256:instance-a",
   };
+  fields.signingKeyId = keyIdForPublicKey("ed25519", fields.publicSigningKey);
+  fields.encryptionKeyId = keyIdForPublicKey(
+    "x25519",
+    fields.publicEncryptionKey,
+  );
   return {
     ...fields,
     proof: sign(

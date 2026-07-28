@@ -98,6 +98,10 @@ describe("tenant hierarchy routes", () => {
       payload: { kind: "production" },
     });
     expect(first.statusCode).toBe(201);
+    expect(first.json().environment).toMatchObject({
+      subjectHashKeyVersion: 1,
+      subjectCanonicalizationVersion: 1,
+    });
 
     const duplicate = await app.inject({
       method: "POST",

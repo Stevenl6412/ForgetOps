@@ -3,7 +3,11 @@ import {
   requireRoleContext,
   type AuthContextProvider,
 } from "../../auth-context.js";
-import { PairingService, type AgentRegistration } from "./pairing-service.js";
+import {
+  PairingService,
+  type AgentRegistration,
+  type ReplacementMode,
+} from "./pairing-service.js";
 
 interface EnvironmentParams {
   environmentId: string;
@@ -14,6 +18,8 @@ interface AgentParams {
 }
 
 interface PairingTokenBody {
+  replacementMode?: ReplacementMode;
+  /** @deprecated Use replacementMode. */
   allowReplacement?: boolean;
 }
 
@@ -38,7 +44,10 @@ const agentParamsSchema = {
 const pairingTokenBodySchema = {
   type: "object",
   additionalProperties: false,
-  properties: { allowReplacement: { type: "boolean" } },
+  properties: {
+    replacementMode: { type: "string", enum: ["none", "drain", "force"] },
+    allowReplacement: { type: "boolean" },
+  },
 } as const;
 
 const pairBodySchema = {
@@ -48,6 +57,9 @@ const pairBodySchema = {
     "environmentId",
     "publicSigningKey",
     "publicEncryptionKey",
+    "signingKeyId",
+    "encryptionKeyId",
+    "subjectHmacKeyVersion",
     "version",
     "protocolVersion",
     "instanceFingerprint",
@@ -59,6 +71,9 @@ const pairBodySchema = {
     environmentId: { type: "string", minLength: 1, maxLength: 200 },
     publicSigningKey: { type: "string", minLength: 1, maxLength: 128 },
     publicEncryptionKey: { type: "string", minLength: 1, maxLength: 128 },
+    signingKeyId: { type: "string", minLength: 1, maxLength: 128 },
+    encryptionKeyId: { type: "string", minLength: 1, maxLength: 128 },
+    subjectHmacKeyVersion: { type: "integer", minimum: 1 },
     version: { type: "string", minLength: 1, maxLength: 100 },
     protocolVersion: { type: "string", minLength: 1, maxLength: 100 },
     instanceFingerprint: { type: "string", minLength: 1, maxLength: 256 },
@@ -93,6 +108,7 @@ export function registerAgentRoutes(
         tenantId: context.tenantId,
         environmentId: request.params.environmentId,
         actorId: context.actorId,
+        replacementMode: request.body.replacementMode,
         allowReplacement: request.body.allowReplacement,
       });
       return reply.code(201).send({

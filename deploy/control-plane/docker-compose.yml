@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: ${FORGETOPS_POSTGRES_IMAGE:?Set PostgreSQL image pinned by sha256 digest}
+    environment:
+      POSTGRES_DB: forgetops
+      POSTGRES_USER: forgetops
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [control-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgetops -d forgetops"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: ${FORGETOPS_REDIS_IMAGE:?Set Redis image pinned by sha256 digest}
+    command: ["redis-server", "--save", "", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks: [control-internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  signer:
+    image: ${FORGETOPS_SIGNER_IMAGE:?Set signer image pinned by sha256 digest}
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    secrets: [authorization_signing_key, lease_signing_key]
+    networks: [control-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ${FORGETOPS_API_IMAGE:?Set API image pinned by sha256 digest}
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "3001:3001"
+    networks: [control-internal, public]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      signer:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    image: ${FORGETOPS_WORKER_IMAGE:?Set worker image pinned by sha256 digest}
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [control-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  public:
+  control-internal:
+    internal: true
+
+secrets:
+  postgres_password:
+    file: ${FORGETOPS_POSTGRES_PASSWORD_FILE:?Set PostgreSQL password file}
+  authorization_signing_key:
+    file: ${FORGETOPS_AUTH_SIGNING_KEY_FILE:?Set authorization signing key file}
+  lease_signing_key:
+    file: ${FORGETOPS_LEASE_SIGNING_KEY_FILE:?Set execution lease signing key file}

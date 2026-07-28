@@ -11,10 +11,14 @@ const plan = {
   planVersion: 4,
   planFingerprint: "sha256:new",
 };
+const initialAuthorization = {
+  ...plan,
+  agentId: "agt_1",
+  attemptId: "att_1",
+  allowedStepIds: ["step_1", "step_failed"],
+};
 
-function throwOnSecondRead<T extends Record<string, string | number | boolean>>(
-  values: T,
-) {
+function throwOnSecondRead<T extends Record<string, unknown>>(values: T) {
   const reads: Record<string, number> = {};
   const input = {};
 
@@ -63,7 +67,7 @@ function inStatus(status: PrivacyRequestStatus) {
   if (status === "awaiting_approval") return request;
 
   request.approvePlan({ ...plan, decidedBy: "usr_2" });
-  request.authorizeExecution({ ...plan, agentId: "agt_1" });
+  request.authorizeExecution(initialAuthorization);
   if (status === "execution_authorized") return request;
 
   request.markExecuting({ agentId: "agt_1" });
@@ -73,6 +77,8 @@ function inStatus(status: PrivacyRequestStatus) {
   if (status === "partially_completed")
     request.markPartial({ affectedCount: 2, failedCount: 1 });
   if (status === "failed") request.fail({ category: "connector_error" });
+  if (status === "needs_review")
+    request.markNeedsReview({ category: "uncertain_remote_effect" });
   if (status === "cancelled") {
     const cancelled = created();
     cancelled.cancel({ actorId: "usr_1", reason: "duplicate" });
@@ -126,9 +132,19 @@ describe("PrivacyRequestAggregate transitions", () => {
       (request) => request.cancel({ actorId: "usr_1", reason: "duplicate" }),
     ],
     [
+      "identity_verification_pending",
+      "failed",
+      (request) => request.fail({ category: "identity_provider_error" }),
+    ],
+    [
       "identity_verified",
       "planning",
       (request) => request.beginPlanning({ agentId: "agt_1" }),
+    ],
+    [
+      "identity_verified",
+      "cancelled",
+      (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
     ],
     [
       "planning",
@@ -140,7 +156,7 @@ describe("PrivacyRequestAggregate transitions", () => {
       "execution_authorized",
       (request) => {
         request.attachPlan({ ...plan, requiresApproval: false });
-        request.authorizeExecution({ ...plan, agentId: "agt_1" });
+        request.authorizeExecution(initialAuthorization);
       },
     ],
     [
@@ -149,17 +165,31 @@ describe("PrivacyRequestAggregate transitions", () => {
       (request) => request.fail({ category: "planning_error" }),
     ],
     [
+      "planning",
+      "cancelled",
+      (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
+    ],
+    [
       "awaiting_approval",
       "execution_authorized",
       (request) => {
         request.approvePlan({ ...plan, decidedBy: "usr_2" });
-        request.authorizeExecution({ ...plan, agentId: "agt_1" });
+        request.authorizeExecution(initialAuthorization);
       },
     ],
     [
       "awaiting_approval",
       "cancelled",
       (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
+    ],
+    [
+      "awaiting_approval",
+      "planning",
+      (request) =>
+        request.rejectPlan({
+          decidedBy: "usr_2",
+          disposition: "changes_requested",
+        }),
     ],
     [
       "execution_authorized",
@@ -170,6 +200,15 @@ describe("PrivacyRequestAggregate transitions", () => {
       "execution_authorized",
       "cancelled",
       (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
+    ],
+    [
+      "execution_authorized",
+      "awaiting_approval",
+      (request) =>
+        request.invalidateAuthorization({
+          actorId: "usr_1",
+          reason: "authorization_expired",
+        }),
     ],
     [
       "executing",
@@ -185,6 +224,114 @@ describe("PrivacyRequestAggregate transitions", () => {
       "executing",
       "failed",
       (request) => request.fail({ category: "connector_error" }),
+    ],
+    [
+      "executing",
+      "needs_review",
+      (request) =>
+        request.markNeedsReview({ category: "uncertain_remote_effect" }),
+    ],
+    [
+      "partially_completed",
+      "planning",
+      (request) =>
+        request.requestReplan({
+          actorId: "usr_1",
+          reason: "connector_configuration_changed",
+        }),
+    ],
+    [
+      "partially_completed",
+      "execution_authorized",
+      (request) =>
+        request.beginRetry({
+          attemptId: "att_2",
+          allowedStepIds: ["step_failed"],
+          expectedVersion: request.version,
+        }),
+    ],
+    [
+      "partially_completed",
+      "needs_review",
+      (request) =>
+        request.markNeedsReview({ category: "uncertain_remote_effect" }),
+    ],
+    [
+      "partially_completed",
+      "completed",
+      (request) =>
+        request.acceptRetainedOutcome({
+          actorId: "usr_2",
+          reason: "retained_outcome_accepted",
+        }),
+    ],
+    [
+      "failed",
+      "planning",
+      (request) =>
+        request.requestReplan({
+          actorId: "usr_1",
+          reason: "connector_configuration_changed",
+        }),
+    ],
+    [
+      "failed",
+      "execution_authorized",
+      (request) =>
+        request.beginRetry({
+          attemptId: "att_2",
+          allowedStepIds: ["step_failed"],
+          expectedVersion: request.version,
+        }),
+    ],
+    [
+      "failed",
+      "needs_review",
+      (request) =>
+        request.markNeedsReview({ category: "uncertain_remote_effect" }),
+    ],
+    [
+      "failed",
+      "cancelled",
+      (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
+    ],
+    [
+      "needs_review",
+      "planning",
+      (request) =>
+        request.requestReplan({
+          actorId: "usr_1",
+          reason: "connector_configuration_changed",
+        }),
+    ],
+    [
+      "needs_review",
+      "execution_authorized",
+      (request) =>
+        request.beginRetry({
+          attemptId: "att_2",
+          allowedStepIds: ["step_failed"],
+          expectedVersion: request.version,
+        }),
+    ],
+    [
+      "needs_review",
+      "partially_completed",
+      (request) => request.markPartial({ affectedCount: 2, failedCount: 1 }),
+    ],
+    [
+      "needs_review",
+      "completed",
+      (request) =>
+        request.acceptRetainedOutcome({
+          actorId: "usr_2",
+          reason: "retained_outcome_accepted",
+        }),
+    ],
+    [
+      "needs_review",
+      "cancelled",
+      (request) => request.cancel({ actorId: "usr_1", reason: "withdrawn" }),
     ],
   ] satisfies readonly (readonly [
     PrivacyRequestStatus,
@@ -212,8 +359,13 @@ describe("PrivacyRequestAggregate transitions", () => {
         request.attachPlan({ ...plan, requiresApproval: true }),
       approvePlan: (request: PrivacyRequestAggregate) =>
         request.approvePlan({ ...plan, decidedBy: "usr_2" }),
+      rejectPlan: (request: PrivacyRequestAggregate) =>
+        request.rejectPlan({
+          decidedBy: "usr_2",
+          disposition: "changes_requested",
+        }),
       authorizeExecution: (request: PrivacyRequestAggregate) =>
-        request.authorizeExecution({ ...plan, agentId: "agt_1" }),
+        request.authorizeExecution(initialAuthorization),
       markExecuting: (request: PrivacyRequestAggregate) =>
         request.markExecuting({ agentId: "agt_1" }),
       complete: (request: PrivacyRequestAggregate) =>
@@ -222,6 +374,29 @@ describe("PrivacyRequestAggregate transitions", () => {
         request.markPartial({ affectedCount: 2, failedCount: 1 }),
       fail: (request: PrivacyRequestAggregate) =>
         request.fail({ category: "connector_error" }),
+      markNeedsReview: (request: PrivacyRequestAggregate) =>
+        request.markNeedsReview({ category: "uncertain_remote_effect" }),
+      requestReplan: (request: PrivacyRequestAggregate) =>
+        request.requestReplan({
+          actorId: "usr_1",
+          reason: "connector_configuration_changed",
+        }),
+      beginRetry: (request: PrivacyRequestAggregate) =>
+        request.beginRetry({
+          attemptId: "att_2",
+          allowedStepIds: ["step_failed"],
+          expectedVersion: request.version,
+        }),
+      invalidateAuthorization: (request: PrivacyRequestAggregate) =>
+        request.invalidateAuthorization({
+          actorId: "usr_1",
+          reason: "authorization_expired",
+        }),
+      acceptRetainedOutcome: (request: PrivacyRequestAggregate) =>
+        request.acceptRetainedOutcome({
+          actorId: "usr_2",
+          reason: "retained_outcome_accepted",
+        }),
       cancel: (request: PrivacyRequestAggregate) =>
         request.cancel({ actorId: "usr_1", reason: "duplicate" }),
     };
@@ -230,15 +405,36 @@ describe("PrivacyRequestAggregate transitions", () => {
       readonly (keyof typeof commands)[]
     > = {
       created: ["beginIdentityVerification", "markIdentityVerified", "cancel"],
-      identity_verification_pending: ["markIdentityVerified", "cancel"],
-      identity_verified: ["beginPlanning"],
-      planning: ["attachPlan", "authorizeExecution", "fail"],
-      awaiting_approval: ["approvePlan", "authorizeExecution", "cancel"],
-      execution_authorized: ["markExecuting", "cancel"],
-      executing: ["complete", "markPartial", "fail"],
+      identity_verification_pending: ["markIdentityVerified", "fail", "cancel"],
+      identity_verified: ["beginPlanning", "cancel"],
+      planning: ["attachPlan", "authorizeExecution", "fail", "cancel"],
+      awaiting_approval: [
+        "approvePlan",
+        "rejectPlan",
+        "authorizeExecution",
+        "cancel",
+      ],
+      execution_authorized: [
+        "markExecuting",
+        "invalidateAuthorization",
+        "cancel",
+      ],
+      executing: ["complete", "markPartial", "fail", "markNeedsReview"],
       completed: [],
-      partially_completed: [],
-      failed: [],
+      partially_completed: [
+        "markNeedsReview",
+        "requestReplan",
+        "beginRetry",
+        "acceptRetainedOutcome",
+      ],
+      failed: ["markNeedsReview", "requestReplan", "beginRetry", "cancel"],
+      needs_review: [
+        "markPartial",
+        "requestReplan",
+        "beginRetry",
+        "acceptRetainedOutcome",
+        "cancel",
+      ],
       cancelled: [],
     };
 
@@ -260,7 +456,7 @@ describe("PrivacyRequestAggregate transitions", () => {
     }
   });
 
-  it.each(["completed", "partially_completed", "failed", "cancelled"] as const)(
+  it.each(["completed", "cancelled"] as const)(
     "keeps %s terminal",
     (status) => {
       const request = inStatus(status);
@@ -314,13 +510,12 @@ describe("plan binding and authorization", () => {
     const request = inStatus("awaiting_approval");
     request.approvePlan({ ...plan, decidedBy: "usr_2" });
     const { input, reads } = throwOnSecondRead({
-      ...plan,
-      agentId: "agt_1",
+      ...initialAuthorization,
     });
 
     request.authorizeExecution(input);
 
-    expect(Object.values(reads)).toEqual([1, 1, 1, 1]);
+    expect(Object.values(reads)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(request.status).toBe("execution_authorized");
     expect(request.pullEvents().at(-1)?.payload).toMatchObject(plan);
   });
@@ -403,9 +598,8 @@ describe("plan binding and authorization", () => {
 
     expect(() =>
       request.authorizeExecution({
-        ...plan,
+        ...initialAuthorization,
         planVersion: 3,
-        agentId: "agt_1",
       }),
     ).toThrow("PLAN_VERSION_MISMATCH");
     expect(request.snapshot()).toEqual(before);
@@ -423,7 +617,7 @@ describe("plan binding and authorization", () => {
     request.approvePlan({ ...plan, decidedBy: "usr_2" });
     const before = request.snapshot();
     const input = {
-      ...plan,
+      ...initialAuthorization,
       get agentId(): string {
         throw new Error("authorization accessor failed");
       },
@@ -503,9 +697,8 @@ describe("plan binding and authorization", () => {
 
     expect(() =>
       request.authorizeExecution({
-        ...plan,
+        ...initialAuthorization,
         ...stale,
-        agentId: "agt_1",
       }),
     ).toThrow("PLAN_VERSION_MISMATCH");
   });
@@ -513,9 +706,7 @@ describe("plan binding and authorization", () => {
   it("requires approval before authorizing a plan that requires it", () => {
     const request = inStatus("awaiting_approval");
 
-    expect(() =>
-      request.authorizeExecution({ ...plan, agentId: "agt_1" }),
-    ).toThrow(
+    expect(() => request.authorizeExecution(initialAuthorization)).toThrow(
       expect.objectContaining({
         code: "REQUEST_STATE_CONFLICT",
         fromState: "awaiting_approval",
@@ -527,9 +718,198 @@ describe("plan binding and authorization", () => {
   it("requires an attached auto-execution plan before authorization", () => {
     const request = inStatus("planning");
 
+    expect(() => request.authorizeExecution(initialAuthorization)).toThrow(
+      StateConflictError,
+    );
+  });
+
+  it("creates a new immutable attempt for a selected-step retry", () => {
+    const request = inStatus("partially_completed");
+    const firstAttempt = request.executionAttempts()[0];
+
+    request.beginRetry({
+      attemptId: "att_2",
+      allowedStepIds: ["step_failed"],
+      expectedVersion: request.version,
+    });
+
+    expect(request.currentAttemptId).toBe("att_2");
+    expect(request.status).toBe("execution_authorized");
+    expect(request.executionAttempts()).toEqual([
+      firstAttempt,
+      expect.objectContaining({
+        id: "att_2",
+        attemptNumber: 2,
+        kind: "retry",
+        allowedStepIds: ["step_failed"],
+        status: "authorized",
+      }),
+    ]);
+    expect(Object.isFrozen(firstAttempt)).toBe(true);
+    expect(Object.isFrozen(firstAttempt?.allowedStepIds)).toBe(true);
+  });
+
+  it("leaves state, attempts, and events unchanged for a stale retry", () => {
+    const request = inStatus("failed");
+    request.pullEvents();
+    const snapshot = request.snapshot();
+    const attempts = request.executionAttempts();
+
     expect(() =>
-      request.authorizeExecution({ ...plan, agentId: "agt_1" }),
-    ).toThrow(StateConflictError);
+      request.beginRetry({
+        attemptId: "att_2",
+        allowedStepIds: ["step_failed"],
+        expectedVersion: request.version - 1,
+      }),
+    ).toThrow("REQUEST_VERSION_MISMATCH");
+
+    expect(request.snapshot()).toEqual(snapshot);
+    expect(request.executionAttempts()).toEqual(attempts);
+    expect(request.pullEvents()).toEqual([]);
+  });
+
+  it.each([
+    { allowedStepIds: [] as string[] },
+    { allowedStepIds: [""] },
+    { allowedStepIds: ["step_failed", "step_failed"] },
+  ])(
+    "rejects an invalid retry step scope without mutation",
+    ({ allowedStepIds }) => {
+      const request = inStatus("failed");
+      request.pullEvents();
+      const snapshot = request.snapshot();
+      const attempts = request.executionAttempts();
+
+      expect(() =>
+        request.beginRetry({
+          attemptId: "att_2",
+          allowedStepIds,
+          expectedVersion: request.version,
+        }),
+      ).toThrow("EXECUTION_ATTEMPT_STEP_SCOPE_INVALID");
+
+      expect(request.snapshot()).toEqual(snapshot);
+      expect(request.executionAttempts()).toEqual(attempts);
+      expect(request.pullEvents()).toEqual([]);
+    },
+  );
+
+  it("does not reuse an earlier attempt id", () => {
+    const request = inStatus("failed");
+
+    expect(() =>
+      request.beginRetry({
+        attemptId: "att_1",
+        allowedStepIds: ["step_failed"],
+        expectedVersion: request.version,
+      }),
+    ).toThrow("EXECUTION_ATTEMPT_ID_INVALID");
+    expect(request.executionAttempts()).toHaveLength(1);
+  });
+
+  it("returns a rejected plan to planning when changes are requested", () => {
+    const request = inStatus("awaiting_approval");
+
+    request.rejectPlan({
+      decidedBy: "usr_2",
+      disposition: "changes_requested",
+    });
+
+    expect(request.status).toBe("planning");
+    expect(request.snapshot().plan).toBeNull();
+    expect(request.snapshot().approval).toBeNull();
+  });
+
+  it("requires a newer plan version after changes are requested", () => {
+    const request = inStatus("awaiting_approval");
+    request.rejectPlan({
+      decidedBy: "usr_2",
+      disposition: "changes_requested",
+    });
+
+    expect(() =>
+      request.attachPlan({ ...plan, requiresApproval: true }),
+    ).toThrow(PlanVersionMismatchError);
+
+    request.attachPlan({
+      ...plan,
+      planVersion: 5,
+      requiresApproval: true,
+    });
+    expect(request.status).toBe("awaiting_approval");
+  });
+
+  it("cancels a rejected plan with the audited disposition", () => {
+    const request = inStatus("awaiting_approval");
+    request.pullEvents();
+
+    request.rejectPlan({
+      decidedBy: "usr_2",
+      disposition: "plan_rejected",
+    });
+
+    expect(request.status).toBe("cancelled");
+    expect(request.pullEvents()).toEqual([
+      expect.objectContaining({
+        type: "ExecutionPlanRejected",
+        payload: expect.objectContaining({
+          decidedBy: "usr_2",
+          disposition: "plan_rejected",
+        }),
+      }),
+    ]);
+  });
+
+  it("invalidates an unused authorization and cancels only that attempt", () => {
+    const request = inStatus("execution_authorized");
+
+    request.invalidateAuthorization({
+      actorId: "usr_1",
+      reason: "authorization_expired",
+    });
+
+    expect(request.status).toBe("awaiting_approval");
+    expect(request.snapshot().approval).toBeNull();
+    expect(request.executionAttempts()).toEqual([
+      expect.objectContaining({
+        id: "att_1",
+        status: "cancelled",
+        completedAt: expect.any(String),
+      }),
+    ]);
+  });
+
+  it("audits acceptance of a retained partial outcome", () => {
+    const request = inStatus("partially_completed");
+    request.pullEvents();
+
+    request.acceptRetainedOutcome({
+      actorId: "usr_2",
+      reason: "retained_outcome_accepted",
+    });
+
+    expect(request.status).toBe("completed");
+    expect(request.pullEvents()).toEqual([
+      expect.objectContaining({
+        type: "RetainedOutcomeAccepted",
+        payload: expect.objectContaining({
+          actorId: "usr_2",
+          reason: "retained_outcome_accepted",
+          attemptId: "att_1",
+        }),
+      }),
+    ]);
+  });
+
+  it("keeps failed requests retryable through an explicit replan", () => {
+    const request = inStatus("failed");
+
+    request.requestReplan({
+      actorId: "usr_1",
+      reason: "connector_configuration_changed",
+    });
+
+    expect(request.status).toBe("planning");
   });
 });
 
@@ -610,7 +990,7 @@ describe("events and snapshots", () => {
     request.beginPlanning({ agentId: "agt_1" });
     request.attachPlan({ ...plan, requiresApproval: true });
     request.approvePlan({ ...plan, decidedBy: "usr_2" });
-    request.authorizeExecution({ ...plan, agentId: "agt_1" });
+    request.authorizeExecution(initialAuthorization);
     expect(request.version).toBe(6);
   });
 
@@ -629,6 +1009,7 @@ describe("events and snapshots", () => {
       createdByActorId: "usr_1",
       deadlineAt: "2026-08-20T00:00:00.000Z",
       version: 1,
+      currentAttemptId: null,
       plan: null,
       approval: null,
     });

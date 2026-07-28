@@ -30,7 +30,7 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - uses: dtolnay/rust-toolchain@1.97.1
         with: { components: rustfmt, clippy }
-      - uses: taiki-e/install-action@v2.84.1
+      - uses: taiki-e/install-action@v2.85.0
         with: { tool: nextest@0.9.140 }
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check

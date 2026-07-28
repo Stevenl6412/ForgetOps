@@ -1,5 +1,16 @@
 {
   "name": "@forgetops/worker",
   "type": "module",
-  "private": true
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@forgetops/domain": "workspace:*",
+    "canonicalize": "3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1"
+  }
 }

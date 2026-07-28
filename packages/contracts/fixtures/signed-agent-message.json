@@ -1,0 +1,24 @@
+{
+  "publicKey": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ",
+  "canonicalBytes": "eyJhZ2VudElkIjoiYWd0X2ZpeHR1cmUiLCJkaXJlY3Rpb24iOiJhZ2VudF90b19jb250cm9sIiwiZW52aXJvbm1lbnRJZCI6ImVudl9maXh0dXJlIiwia2V5SWQiOiJhZ2VudC1zaWduaW5nLWtleS0xIiwibWVzc2FnZUlkIjoibXNnX3J1c3RfZml4dHVyZSIsIm1lc3NhZ2VUeXBlIjoiYWdlbnQucG9sbCIsInBheWxvYWQiOnsibmVzdGVkIjp7ImNvdW50IjoxLCJlbmFibGVkIjp0cnVlfSwid2FpdE1zIjowfSwicHJvdG9jb2xWZXJzaW9uIjoiMS4wIiwic2VudEF0IjoiMjAyNi0wNy0yM1QwODowMDowMC4wMDBaIiwic2VxdWVuY2UiOiI3IiwidHlwZSI6ImZvcmdldG9wcy5hZ2VudC1tZXNzYWdlIn0",
+  "message": {
+    "type": "forgetops.agent-message",
+    "protocolVersion": "1.0",
+    "messageType": "agent.poll",
+    "messageId": "msg_rust_fixture",
+    "keyId": "agent-signing-key-1",
+    "environmentId": "env_fixture",
+    "agentId": "agt_fixture",
+    "direction": "agent_to_control",
+    "sequence": "7",
+    "sentAt": "2026-07-23T08:00:00.000Z",
+    "payload": {
+      "nested": {
+        "enabled": true,
+        "count": 1
+      },
+      "waitMs": 0
+    },
+    "signature": "QY_jiriy0aetUaOrmk3PSAybCs5DH5bInO1cb8voxak0V47y1CP0bKuz0QLOm7oOlWTWrEPZAZpdxi5-D2qrBQ"
+  }
+}

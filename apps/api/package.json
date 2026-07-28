@@ -8,13 +8,21 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/websocket": "11.3.0",
+    "@forgetops/application": "workspace:*",
     "@forgetops/auth": "workspace:*",
+    "@forgetops/contracts": "workspace:*",
     "@forgetops/database": "workspace:*",
+    "@forgetops/signer": "workspace:*",
+    "canonicalize": "3.0.0",
     "fastify": "5.10.0",
-    "postgres": "3.4.9"
+    "postgres": "3.4.9",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "12.0.4",
-    "@types/node": "26.1.1"
+    "@types/node": "26.1.1",
+    "@types/ws": "8.18.1",
+    "ws": "8.21.1"
   }
 }
