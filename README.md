@@ -34,10 +34,11 @@ configured erase, anonymize, or retention actions with verification.
 ### Export my data
 
 Implemented building blocks cover export requests, encrypted archive creation,
-browser-key wrapping, and download capabilities. When the remaining deployment
-wiring is complete, the intended workflow is for the agent to discover and
-gather data locally, publish an encrypted archive to customer-owned storage,
-and let a reauthenticated browser obtain the archive key for download.
+an agent-side key-wrap primitive, and download capability metadata. When the
+remaining deployment wiring is complete, the intended workflow is for the
+agent to discover and gather data locally, publish an encrypted archive to
+customer-owned storage, and let a reauthenticated browser obtain the archive
+key for download.
 
 ## Implemented in this preview
 
@@ -47,8 +48,8 @@ and let a reauthenticated browser obtain the archive key for download.
   idempotency, approvals, and privacy-portal status/download capabilities.
 - Signed agent pairing and messages, short-lived execution leases, pause
   enforcement, and encrypted local agent state.
-- Chunked encrypted export archives with manifests and reauthentication-bound
-  browser-key wrapping.
+- Chunked encrypted export archives with manifests and an agent-side key-wrap
+  primitive.
 - A Supabase connector for configured discovery, export, erase/anonymize, and
   verification flows, plus a TypeScript connector SDK.
 

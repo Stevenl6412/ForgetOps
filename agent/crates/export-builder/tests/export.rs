@@ -1,7 +1,15 @@
-use export_builder::{
-    EncryptedArchiveWriter, ExportManifest, decrypt_chunk, safe_archive_path, unwrap_archive_key,
-    wrap_archive_key,
+use chacha20poly1305::{
+    XChaCha20Poly1305, XNonce,
+    aead::{Aead, KeyInit, Payload},
 };
+use export_builder::{
+    ArchiveEncryptionError, EncryptedArchiveWriter, ExportManifest, WrappedArchiveKey,
+    decrypt_chunk, safe_archive_path, unwrap_archive_key, wrap_archive_key,
+};
+use x25519_dalek::{PublicKey, StaticSecret};
+
+const KEY_WRAP_CONTEXT: &[u8] = b"req_1\0portal_1\0browser_1\x002026-07-24T01:00:00.000Z";
+const LEGACY_WRAP_CONTEXT: &[u8] = b"forgetops.export-key-wrap.v1\0";
 
 fn manifest() -> ExportManifest {
     ExportManifest {
@@ -36,12 +44,105 @@ fn rejects_traversal_and_encrypts_chunks() {
 #[test]
 fn wraps_and_unwraps_archive_key_for_recipient() {
     let secret = [9u8; 32];
-    let public = x25519_dalek::PublicKey::from(&x25519_dalek::StaticSecret::from(secret));
+    let public = PublicKey::from(&StaticSecret::from(secret));
     let archive_key = [3u8; 32];
-    let wrapped = wrap_archive_key(&archive_key, public.as_bytes(), b"req_1").unwrap();
+    let wrapped = wrap_archive_key(&archive_key, public.as_bytes(), KEY_WRAP_CONTEXT).unwrap();
     assert_eq!(
-        unwrap_archive_key(&wrapped, &secret, b"req_1").unwrap(),
+        unwrap_archive_key(&wrapped, &secret, KEY_WRAP_CONTEXT).unwrap(),
         archive_key
+    );
+}
+
+#[test]
+fn rejects_non_contributory_recipient_and_ephemeral_keys() {
+    let archive_key = [3u8; 32];
+    assert_eq!(
+        wrap_archive_key(&archive_key, &[0u8; 32], KEY_WRAP_CONTEXT),
+        Err(ArchiveEncryptionError::InvalidKey)
+    );
+
+    let wrapped = WrappedArchiveKey {
+        version: 1,
+        ephemeral_public_key: [0u8; 32],
+        nonce: [5u8; 24],
+        ciphertext: vec![0u8; 48],
+    };
+    assert_eq!(
+        unwrap_archive_key(&wrapped, &[9u8; 32], KEY_WRAP_CONTEXT),
+        Err(ArchiveEncryptionError::InvalidKey)
+    );
+}
+
+#[test]
+fn rejects_wrong_key_wrap_context_and_tampering() {
+    let secret = [9u8; 32];
+    let public = PublicKey::from(&StaticSecret::from(secret));
+    let archive_key = [3u8; 32];
+    let wrapped = wrap_archive_key(&archive_key, public.as_bytes(), KEY_WRAP_CONTEXT).unwrap();
+
+    assert_eq!(
+        unwrap_archive_key(&wrapped, &secret, b"req_other"),
+        Err(ArchiveEncryptionError::AuthenticationFailed)
+    );
+
+    let mut tampered = wrapped;
+    tampered.ciphertext[0] ^= 1;
+    assert_eq!(
+        unwrap_archive_key(&tampered, &secret, KEY_WRAP_CONTEXT),
+        Err(ArchiveEncryptionError::AuthenticationFailed)
+    );
+}
+
+#[test]
+fn rejects_legacy_raw_shared_secret_key_derivation() {
+    let recipient_secret = [9u8; 32];
+    let recipient_public = PublicKey::from(&StaticSecret::from(recipient_secret));
+    let ephemeral_secret = StaticSecret::from([7u8; 32]);
+    let ephemeral_public_key = PublicKey::from(&ephemeral_secret).to_bytes();
+    let shared = ephemeral_secret.diffie_hellman(&recipient_public);
+    let nonce = [5u8; 24];
+    let aad = [LEGACY_WRAP_CONTEXT, KEY_WRAP_CONTEXT].concat();
+    let ciphertext = XChaCha20Poly1305::new_from_slice(shared.as_bytes())
+        .unwrap()
+        .encrypt(
+            &XNonce::try_from(&nonce[..]).unwrap(),
+            Payload {
+                msg: &[3u8; 32],
+                aad: &aad,
+            },
+        )
+        .unwrap();
+    let legacy = WrappedArchiveKey {
+        version: 1,
+        ephemeral_public_key,
+        nonce,
+        ciphertext,
+    };
+
+    assert_eq!(
+        unwrap_archive_key(&legacy, &recipient_secret, KEY_WRAP_CONTEXT),
+        Err(ArchiveEncryptionError::AuthenticationFailed)
+    );
+}
+
+#[test]
+fn preserves_versioned_serialized_key_envelope_contract() {
+    let wrapped = WrappedArchiveKey {
+        version: 1,
+        ephemeral_public_key: [7u8; 32],
+        nonce: [5u8; 24],
+        ciphertext: vec![3u8; 48],
+    };
+
+    let encoded = serde_json::to_value(&wrapped).unwrap();
+    assert_eq!(encoded["version"], 1);
+    assert_eq!(encoded["ephemeralPublicKey"].as_array().unwrap().len(), 32);
+    assert_eq!(encoded["nonce"].as_array().unwrap().len(), 24);
+    assert_eq!(encoded["ciphertext"].as_array().unwrap().len(), 48);
+    assert!(encoded.get("ephemeral_public_key").is_none());
+    assert_eq!(
+        serde_json::from_value::<WrappedArchiveKey>(encoded).unwrap(),
+        wrapped
     );
 }
 
