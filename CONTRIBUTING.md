@@ -6,7 +6,11 @@ Thanks for helping improve the Developer Preview. Before contributing, read the
 ## Prerequisites
 
 Node.js 22, pnpm 11.16.0, Rust 1.97.1, and Docker for container-backed
-integration tests.
+integration tests. Install the pinned Rust test runner with:
+
+```bash
+cargo install cargo-nextest --version 0.9.140 --locked
+```
 
 ## Before opening a pull request
 
