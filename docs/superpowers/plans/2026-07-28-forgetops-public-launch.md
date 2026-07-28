@@ -96,7 +96,7 @@ GitHub CLI 2.96+, Apache-2.0.
   `wrap_archive_key`, and `unwrap_archive_key` signatures with no behavior or
   serialized-format change.
 
-- [ ] **Step 1: Inventory publication candidates without printing secret
+- [x] **Step 1: Inventory publication candidates without printing secret
       values**
 
 Run:
@@ -119,7 +119,7 @@ Expected:
 - `node_modules`, `target`, `.next`, `.turbo`, `.env`, and local databases are
   excluded by `.gitignore`.
 
-- [ ] **Step 2: Scan publish candidates for high-confidence credential
+- [x] **Step 2: Scan publish candidates for high-confidence credential
       patterns**
 
 Run:
@@ -131,13 +131,13 @@ rg -l -n --hidden `
   --glob '!target/**' `
   --glob '!.turbo/**' `
   --glob '!.next/**' `
-  '(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,})' .
+  '(^|[^A-Za-z0-9_-])(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,})($|[^A-Za-z0-9_-])' .
 ```
 
 Expected: no output. If output appears, stop; report only file paths, never
 secret values, and remove or rotate the credential before continuing.
 
-- [ ] **Step 3: Reproduce the Rust failure**
+- [x] **Step 3: Reproduce the Rust failure**
 
 Run:
 
@@ -148,7 +148,7 @@ cargo test -p export-builder --no-run
 Expected: FAIL with four `E0308` errors stating that `encrypt` or `decrypt`
 expected a reference to `XNonce`.
 
-- [ ] **Step 4: Apply the minimal compatibility fix**
+- [x] **Step 4: Apply the minimal compatibility fix**
 
 In `agent/crates/export-builder/src/encryption.rs`, change only the nonce
 arguments:
@@ -206,7 +206,7 @@ let plaintext = cipher
 
 Do not change nonce size, key derivation, AAD, error mapping, or public types.
 
-- [ ] **Step 5: Verify the focused crate**
+- [x] **Step 5: Verify the focused crate**
 
 Run:
 
@@ -218,7 +218,7 @@ cargo test -p export-builder
 Expected: formatting passes and all `export-builder` tests pass, including
 chunk round-trip and archive-key wrap/unwrap.
 
-- [ ] **Step 6: Run the repository verification gate**
+- [x] **Step 6: Run the repository verification gate**
 
 Run:
 
@@ -244,7 +244,7 @@ If another code failure appears, fix only a direct compatibility or correctness
 defect required by this gate. Stop and revise the plan if the repair requires a
 new feature, dependency, schema change, or architectural decision.
 
-- [ ] **Step 7: Commit the complete authorized implementation scope**
+- [x] **Step 7: Commit the complete authorized implementation scope**
 
 Run:
 
@@ -283,7 +283,7 @@ changes are committed; ignored build artifacts remain untracked and unstaged.
 - Produces: the repository landing page, contribution contract, private security
   route, issue intake, and bounded CI policy used by GitHub after publication.
 
-- [ ] **Step 1: Write the README opening and status**
+- [x] **Step 1: Write the README opening and status**
 
 Use this exact opening:
 
@@ -340,7 +340,7 @@ integration coverage.
 Do not describe this as a product quickstart or claim an end-to-end production
 deployment.
 
-- [ ] **Step 2: Add the Apache-2.0 license**
+- [x] **Step 2: Add the Apache-2.0 license**
 
 Create `LICENSE` with the canonical Apache License 2.0 text and verify:
 
@@ -350,7 +350,7 @@ Get-Content -TotalCount 3 LICENSE
 
 Expected first line: `Apache License`.
 
-- [ ] **Step 3: Add contribution and security contracts**
+- [x] **Step 3: Add contribution and security contracts**
 
 `CONTRIBUTING.md` must include:
 
@@ -385,7 +385,7 @@ mitigation. Do not include real customer data or active credentials.
 Use Contributor Covenant 2.1 in `CODE_OF_CONDUCT.md`. Route private conduct
 reports through the same private-advisory URL with `[Conduct]` in the title.
 
-- [ ] **Step 4: Add focused GitHub templates**
+- [x] **Step 4: Add focused GitHub templates**
 
 Create:
 
@@ -423,7 +423,7 @@ contact_links:
     about: Report vulnerabilities privately. Do not open a public issue.
 ```
 
-- [ ] **Step 5: Harden the existing CI workflow without adding actions**
+- [x] **Step 5: Harden the existing CI workflow without adding actions**
 
 Add at workflow scope:
 
@@ -445,7 +445,7 @@ timeout-minutes: 30
 Retain the existing pinned Node, pnpm, Rust, Nextest, PostgreSQL, and Redis
 versions and the format/lint/test/build order.
 
-- [ ] **Step 6: Validate public files**
+- [x] **Step 6: Validate public files**
 
 Run:
 
@@ -461,7 +461,7 @@ Expected:
 - the only `production-ready` occurrence is the explicit negation in README;
 - no compliance guarantee, placeholder, or incomplete instruction exists.
 
-- [ ] **Step 7: Commit the open-source surface**
+- [x] **Step 7: Commit the open-source surface**
 
 Run:
 
@@ -488,7 +488,7 @@ included.
   design.
 - Produces: a 1280x640 PNG under 1 MB for GitHub social sharing.
 
-- [ ] **Step 1: Generate one restrained preview asset**
+- [x] **Step 1: Generate one restrained preview asset**
 
 Use the image-generation skill with this prompt:
 
@@ -501,7 +501,7 @@ deletion & export orchestration". Minimal developer-tool aesthetic, no gradients
 behind text, no fake UI, no logos of other companies, no badges, no extra copy.
 ```
 
-- [ ] **Step 2: Verify the asset**
+- [x] **Step 2: Verify the asset**
 
 Run:
 
@@ -517,7 +517,7 @@ Inspect the image at original detail. Expected:
 - title and subtitle are legible;
 - no malformed text or third-party branding.
 
-- [ ] **Step 3: Commit the asset**
+- [x] **Step 3: Commit the asset**
 
 Run:
 
@@ -539,7 +539,7 @@ git commit -m "docs: add ForgetOps social preview"
 - Consumes: Tasks 1-3 commits.
 - Produces: a clean commit that is safe to make the public default branch.
 
-- [ ] **Step 1: Verify Git state and publication contents**
+- [x] **Step 1: Verify Git state and publication contents**
 
 Run:
 
@@ -552,12 +552,12 @@ git log -5 --oneline --decorate
 
 Expected: clean working tree on `feature/forgetops-mvp`; no staged changes.
 
-- [ ] **Step 2: Repeat the secret and large-file scans**
+- [x] **Step 2: Repeat the secret and large-file scans**
 
 Repeat Task 1 Steps 1-2. Expected: no secret-pattern matches and no unexplained
 file over 10 MB.
 
-- [ ] **Step 3: Run all release checks**
+- [x] **Step 3: Run all release checks**
 
 Run:
 
@@ -575,7 +575,7 @@ Expected: all checks pass. If Docker is unavailable, `pnpm test` may be recorded
 as blocked only after non-container TypeScript tests pass and the CI workflow is
 confirmed to run the full command on GitHub.
 
-- [ ] **Step 4: Fast-forward `main` without rewriting history**
+- [x] **Step 4: Fast-forward `main` without rewriting history**
 
 Run:
 
@@ -604,7 +604,7 @@ commit; the active branch returns to `feature/forgetops-mvp`.
 - Produces: public `plantrungnampl/ForgetOps` with `main` as default and the
   approved community/security configuration.
 
-- [ ] **Step 1: Reconfirm GitHub identity and repository availability**
+- [x] **Step 1: Reconfirm GitHub identity and repository availability**
 
 Run:
 
@@ -617,7 +617,7 @@ Run:
 Expected: logged in as `plantrungnampl`; repository lookup returns not found.
 If it exists, stop and inspect it instead of overwriting or replacing it.
 
-- [ ] **Step 2: Create the empty public repository**
+- [x] **Step 2: Create the empty public repository**
 
 Run:
 
@@ -632,7 +632,7 @@ Run:
 Expected: repository created with no generated README, license, or `.gitignore`;
 `origin` points to `https://github.com/plantrungnampl/ForgetOps.git`.
 
-- [ ] **Step 3: Push both approved branches**
+- [x] **Step 3: Push both approved branches**
 
 Run:
 
@@ -643,7 +643,7 @@ git push -u origin feature/forgetops-mvp
 
 Expected: both pushes succeed without force; remote `main` matches local `main`.
 
-- [ ] **Step 4: Configure repository features and merge behavior**
+- [x] **Step 4: Configure repository features and merge behavior**
 
 Run:
 
@@ -675,7 +675,7 @@ Run:
 
 Expected: settings and ten topics are visible on the repository.
 
-- [ ] **Step 5: Enable supported security features**
+- [x] **Step 5: Enable supported security features**
 
 Run:
 
@@ -707,7 +707,7 @@ docs/assets/forgetops-social-preview.png
 Expected: GitHub shows the 1280x640 ForgetOps preview. This is the only manual
 browser surface if GitHub does not expose an API for the upload.
 
-- [ ] **Step 7: Verify remote state and CI**
+- [x] **Step 7: Verify remote state and CI**
 
 Run:
 
@@ -732,7 +732,7 @@ Expected:
 - local and remote `main` SHAs match;
 - GitHub Actions has started for the `main` push.
 
-- [ ] **Step 8: Inspect the rendered public landing page**
+- [x] **Step 8: Inspect the rendered public landing page**
 
 Verify in a browser:
 

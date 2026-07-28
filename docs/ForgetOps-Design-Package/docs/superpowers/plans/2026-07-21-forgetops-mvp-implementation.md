@@ -168,7 +168,7 @@ No destructive connector implementation begins until the S0 fixtures pass in bot
 - Consumes: none
 - Produces: repeatable TypeScript and Rust build/test commands plus enforceable dependency rules used by every later task
 
-- [ ] **Step 1: Write the initial TypeScript smoke test**
+- [x] **Step 1: Write the initial TypeScript smoke test**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -180,7 +180,7 @@ describe("workspace", () => {
 });
 ```
 
-- [ ] **Step 2: Write the initial Rust smoke test**
+- [x] **Step 2: Write the initial Rust smoke test**
 
 ```rust
 #[test]
@@ -189,7 +189,7 @@ fn rust_workspace_runs_tests() {
 }
 ```
 
-- [ ] **Step 3: Add root scripts and workspace configuration**
+- [x] **Step 3: Add root scripts and workspace configuration**
 
 ```json
 {
@@ -218,7 +218,7 @@ packages:
   - sdk/*
 ```
 
-- [ ] **Step 4: Add CI commands**
+- [x] **Step 4: Add CI commands**
 
 ```yaml
 name: ci
@@ -260,7 +260,7 @@ jobs:
       - run: pnpm build
 ```
 
-- [ ] **Step 5: Run the workspace checks**
+- [x] **Step 5: Run the workspace checks**
 
 Run:
 
@@ -273,7 +273,7 @@ pnpm build
 
 Expected: TypeScript and Rust smoke tests pass; no lint errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .
@@ -301,7 +301,7 @@ git commit -m "chore: bootstrap ForgetOps monorepo"
 - Consumes: workspace from Task 1
 - Produces: `PrivacyRequestStatusSchema`, `AgentMessageSchema`, `ExecutionAuthorizationClaimsSchema`, `ExecutionLeaseClaimsSchema`, Rust equivalents, canonical-byte fixtures, and cross-language signatures
 
-- [ ] **Step 1: Write failing TypeScript contract tests**
+- [x] **Step 1: Write failing TypeScript contract tests**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -348,7 +348,7 @@ it("rejects an execution lease longer than the policy maximum", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the TypeScript schemas**
+- [x] **Step 2: Implement the TypeScript schemas**
 
 ```ts
 import { z } from "zod";
@@ -431,7 +431,7 @@ export const ExecutionLeaseClaimsSchema = z.object({
 });
 ```
 
-- [ ] **Step 3: Add matching Rust types**
+- [x] **Step 3: Add matching Rust types**
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -498,7 +498,7 @@ pub struct AgentMessage {
 }
 ```
 
-- [ ] **Step 4: Load the same JSON fixtures in both languages**
+- [x] **Step 4: Load the same JSON fixtures in both languages**
 
 Run:
 
@@ -509,7 +509,7 @@ cargo nextest run -p agent-protocol
 
 Expected: both runtimes parse the committed fixtures, produce identical RFC 8785 canonical bytes, and verify each other's signatures.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/contracts agent/crates/agent-protocol
@@ -530,7 +530,7 @@ git commit -m "feat: define shared request and agent contracts"
 - Consumes: request status contracts from Task 2
 - Produces: `PrivacyRequestAggregate` command methods and emitted domain events
 
-- [ ] **Step 1: Write state-transition tests**
+- [x] **Step 1: Write state-transition tests**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -571,7 +571,7 @@ it("keeps terminal states terminal", () => {
 });
 ```
 
-- [ ] **Step 2: Implement command methods with an explicit transition table**
+- [x] **Step 2: Implement command methods with an explicit transition table**
 
 ```ts
 const transitions: Record<string, readonly string[]> = {
@@ -599,7 +599,7 @@ private transition(next: PrivacyRequestStatus, event: DomainEvent): void {
 }
 ```
 
-- [ ] **Step 3: Add approval-binding tests**
+- [x] **Step 3: Add approval-binding tests**
 
 ```ts
 it("rejects approval for a stale plan", () => {
@@ -632,7 +632,7 @@ it("returns an awaiting approval request to planning when changes are requested"
 });
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 pnpm --filter @forgetops/domain test
@@ -640,7 +640,7 @@ pnpm --filter @forgetops/domain test
 
 Expected: all allowed and forbidden transitions pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/domain
@@ -667,7 +667,7 @@ git commit -m "feat: add privacy request state machine"
 - Consumes: domain aggregate and events from Task 3
 - Produces: transactional persistence with generic idempotency, optimistic concurrency, linear audit-chain insertion, RLS, and outbox insertion
 
-- [ ] **Step 1: Write repository integration tests against PostgreSQL**
+- [x] **Step 1: Write repository integration tests against PostgreSQL**
 
 ```ts
 it("persists request state, audit event, and outbox event atomically", async () => {
@@ -693,7 +693,7 @@ it("does not return another tenant request", async () => {
 });
 ```
 
-- [ ] **Step 2: Define integrity indexes in SQL**
+- [x] **Step 2: Define integrity indexes in SQL**
 
 ```sql
 create unique index environments_project_kind_uq
@@ -719,7 +719,7 @@ create unique index audit_events_environment_sequence_uq
   on audit_events(environment_id, sequence);
 ```
 
-- [ ] **Step 3: Implement one serialized transaction for request, audit, and outbox**
+- [x] **Step 3: Implement one serialized transaction for request, audit, and outbox**
 
 ```ts
 await db.transaction(async (tx) => {
@@ -744,11 +744,11 @@ await db.transaction(async (tx) => {
 });
 ```
 
-- [ ] **Step 4: Add RLS and concurrent-chain tests**
+- [x] **Step 4: Add RLS and concurrent-chain tests**
 
 Every tenant-owned table has `USING` and `WITH CHECK` policies driven by a transaction-local tenant context. A concurrency test starts at least 50 state transitions for one environment and asserts one contiguous sequence with no hash fork.
 
-- [ ] **Step 5: Run database tests**
+- [x] **Step 5: Run database tests**
 
 ```bash
 pnpm --filter @forgetops/database test
@@ -756,7 +756,7 @@ pnpm --filter @forgetops/database test
 
 Expected: real PostgreSQL tests pass and transaction rollback leaves no partial rows.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/database
@@ -781,7 +781,7 @@ git commit -m "feat: persist requests with audit and outbox"
 - Consumes: database and shared IDs
 - Produces: tenant-scoped request context, read/write RLS context, role checks, and a composition root for later API routes
 
-- [ ] **Step 1: Write the permission matrix test**
+- [x] **Step 1: Write the permission matrix test**
 
 ```ts
 const cases = [
@@ -797,7 +797,7 @@ it.each(cases)("%s %s => %s", (role, permission, expected) => {
 });
 ```
 
-- [ ] **Step 2: Implement fixed permissions**
+- [x] **Step 2: Implement fixed permissions**
 
 ```ts
 const permissions = {
@@ -821,7 +821,7 @@ const permissions = {
 } as const;
 ```
 
-- [ ] **Step 3: Add API tests for the five-project limit and environment isolation**
+- [x] **Step 3: Add API tests for the five-project limit and environment isolation**
 
 ```ts
 it("rejects a sixth project", async () => {
@@ -836,7 +836,7 @@ it("rejects a sixth project", async () => {
 
 Also prove that a cross-tenant insert or update fails at the database layer even if an application repository is called with the wrong resource ID.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 ```bash
 pnpm --filter @forgetops/auth test
@@ -864,7 +864,7 @@ git commit -m "feat: add tenant hierarchy and fixed RBAC"
 - Consumes: environment authorization and protocol contracts
 - Produces: replaceable paired agent identity plus stable versioned environment subject-key material
 
-- [ ] **Step 1: Write pairing-token tests**
+- [x] **Step 1: Write pairing-token tests**
 
 ```ts
 it("accepts a pairing token once and rejects reuse", async () => {
@@ -877,7 +877,7 @@ it("accepts a pairing token once and rejects reuse", async () => {
 });
 ```
 
-- [ ] **Step 2: Generate agent keys locally**
+- [x] **Step 2: Generate agent keys locally**
 
 ```rust
 pub struct AgentIdentity {
@@ -901,7 +901,7 @@ pub struct EnvironmentSecrets {
 }
 ```
 
-- [ ] **Step 3: Persist generated identity encrypted in the state volume**
+- [x] **Step 3: Persist generated identity encrypted in the state volume**
 
 ```rust
 pub fn write_new_encrypted_identity(
@@ -922,7 +922,7 @@ pub fn write_new_encrypted_identity(
 
 The encryption key comes from a read-only Docker secret. Generated private keys are not written back into the Docker secret mount.
 
-- [ ] **Step 4: Test replacement drain and forced-replacement behavior**
+- [x] **Step 4: Test replacement drain and forced-replacement behavior**
 
 Assertions:
 
@@ -940,7 +940,7 @@ cargo nextest run -p agent-core identity
 
 Expected: one-use token, key validation, stable subject correlation, drain guard, and forced-replacement behavior pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/modules/agents apps/api/tests/agent-pairing.test.ts agent
@@ -967,7 +967,7 @@ git commit -m "feat: pair and revoke customer agents"
 - Consumes: paired agent keys and shared message schema
 - Produces: authenticated at-least-once job delivery, per-direction replay protection, and short-lived online destructive leases
 
-- [ ] **Step 1: Add a cross-language signature fixture test**
+- [x] **Step 1: Add a cross-language signature fixture test**
 
 ```ts
 it("verifies the committed Rust-compatible signature fixture", () => {
@@ -995,7 +995,7 @@ UTF8("forgetops.agent-message.v1") || 0x00 || RFC8785_JCS(unsignedMessage)
 
 Do not construct signatures by concatenating individual variable-length fields.
 
-- [ ] **Step 2: Implement job leasing in PostgreSQL**
+- [x] **Step 2: Implement job leasing in PostgreSQL**
 
 ```sql
 update agent_jobs
@@ -1030,7 +1030,7 @@ loop {
 
 The fallback first closes or invalidates the WebSocket session at the server. WebSocket and polling never lease concurrently for the same agent session.
 
-- [ ] **Step 4: Test duplicate delivery, transport handoff, and expired execution lease**
+- [x] **Step 4: Test duplicate delivery, transport handoff, and expired execution lease**
 
 Expected assertions:
 
@@ -1067,7 +1067,7 @@ git commit -m "feat: deliver signed jobs to outbound agents"
 - Consumes: agent X25519 public key and job delivery
 - Produces: encrypted subject transport, versioned environment subject binding, deterministic duplicate handling, and explicit identity aliases
 
-- [ ] **Step 1: Write browser envelope test**
+- [x] **Step 1: Write browser envelope test**
 
 ```ts
 it("does not include the plaintext identifier in the serialized envelope", async () => {
@@ -1076,7 +1076,7 @@ it("does not include the plaintext identifier in the serialized envelope", async
 });
 ```
 
-- [ ] **Step 2: Define canonical identity normalization**
+- [x] **Step 2: Define canonical identity normalization**
 
 ```rust
 pub const CANONICALIZATION_VERSION: u32 = 1;
@@ -1092,7 +1092,7 @@ pub fn canonical_identity(subject: &SubjectIdentity) -> anyhow::Result<String> {
 }
 ```
 
-- [ ] **Step 3: Compute subject HMAC in the agent**
+- [x] **Step 3: Compute subject HMAC in the agent**
 
 ```rust
 pub fn subject_hash(key: &[u8], key_version: u32, canonical: &str) -> SubjectHash {
@@ -1108,7 +1108,7 @@ pub fn subject_hash(key: &[u8], key_version: u32, canonical: &str) -> SubjectHas
 }
 ```
 
-- [ ] **Step 4: Add ciphertext cleanup test**
+- [x] **Step 4: Add ciphertext cleanup test**
 
 ```ts
 it("removes the envelope after subject binding", async () => {
@@ -1117,7 +1117,7 @@ it("removes the envelope after subject binding", async () => {
 });
 ```
 
-- [ ] **Step 5: Serialize duplicate binding and test owner override**
+- [x] **Step 5: Serialize duplicate binding and test owner override**
 
 Use a transaction-scoped advisory lock derived from environment ID, subject hash, and request type. Two concurrent bindings for the same subject produce one active request and one audited duplicate cancellation. An owner override is explicit, versioned, and excluded from the ordinary partial unique index.
 
@@ -1148,7 +1148,7 @@ git commit -m "feat: bind encrypted subject identities in the agent"
 - Consumes: decrypted subject, plan job, connector descriptors
 - Produces: persistent idempotent step scheduler and restart recovery
 
-- [ ] **Step 1: Write encryption-at-rest test**
+- [x] **Step 1: Write encryption-at-rest test**
 
 ```rust
 #[tokio::test]
@@ -1161,7 +1161,7 @@ async fn sqlite_file_does_not_contain_plaintext_subject() {
 }
 ```
 
-- [ ] **Step 2: Define step state and dependencies**
+- [x] **Step 2: Define step state and dependencies**
 
 ```rust
 pub struct ExecutionStep {
@@ -1263,7 +1263,7 @@ git commit -m "feat: persist encrypted execution graphs in agent"
 - Consumes: subject and DAG contracts
 - Produces: Rust `Connector` trait and `createForgetOpsAdapter()` TypeScript API
 
-- [ ] **Step 1: Write TypeScript adapter route tests**
+- [x] **Step 1: Write TypeScript adapter route tests**
 
 ```ts
 it("rejects an unsigned erase request", async () => {
@@ -1277,7 +1277,7 @@ it("rejects an unsigned erase request", async () => {
 });
 ```
 
-- [ ] **Step 2: Define the Rust connector trait**
+- [x] **Step 2: Define the Rust connector trait**
 
 ```rust
 #[async_trait::async_trait]
@@ -1295,7 +1295,7 @@ pub trait Connector: Send + Sync {
 }
 ```
 
-- [ ] **Step 3: Implement signed adapter requests**
+- [x] **Step 3: Implement signed adapter requests**
 
 ```ts
 export function verifyAdapterSignature(input: {
@@ -1334,7 +1334,7 @@ export function verifyAdapterSignature(input: {
 }
 ```
 
-- [ ] **Step 4: Add payload-size, persistent nonce-replay, timestamp, method, and path-binding tests**
+- [x] **Step 4: Add payload-size, persistent nonce-replay, timestamp, method, and path-binding tests**
 
 Nonce storage survives adapter restart for at least the 60-second acceptance window. Export responses use bounded streaming frames rather than one unbounded JSON body.
 
@@ -1345,7 +1345,7 @@ pnpm --filter @forgetops/adapter test
 cargo nextest run -p adapter-http -p connector-sdk
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add sdk/typescript agent/crates/connector-sdk agent/crates/adapter-http
@@ -1369,7 +1369,7 @@ git commit -m "feat: add custom TypeScript lifecycle adapter"
 - Consumes: connector SDK and execution context
 - Produces: table/storage discovery, export, delete/anonymize, and verification
 
-- [ ] **Step 1: Create a test schema with target and unrelated users**
+- [x] **Step 1: Create a test schema with target and unrelated users**
 
 ```sql
 create table profiles (
@@ -1385,7 +1385,7 @@ insert into profiles values ('user_target', 'target@example.com');
 insert into profiles values ('user_other', 'other@example.com');
 ```
 
-- [ ] **Step 2: Write the destructive safety test**
+- [x] **Step 2: Write the destructive safety test**
 
 ```rust
 #[tokio::test]
@@ -1399,7 +1399,7 @@ async fn deletes_target_and_preserves_unrelated_rows() {
 }
 ```
 
-- [ ] **Step 3: Validate allowlisted identifiers before generating SQL**
+- [x] **Step 3: Validate allowlisted identifiers before generating SQL**
 
 ```rust
 fn validate_identifier(value: &str) -> Result<(), ConfigError> {
@@ -1412,7 +1412,7 @@ fn validate_identifier(value: &str) -> Result<(), ConfigError> {
 
 Health validation also proves that the configured production database role cannot read or mutate an unmapped table and cannot invoke an unapproved function.
 
-- [ ] **Step 4: Implement export writer paths without subject identifiers**
+- [x] **Step 4: Implement export writer paths without subject identifiers**
 
 ```text
 supabase/profiles/records.json
@@ -1424,7 +1424,7 @@ supabase/storage/user-uploads/files/000001.bin
 
 Run the delete through three boundaries: before SQL execution, after PostgreSQL commit but before local completion, and after verification. On recovery, the connector verifies final state before deciding whether another mutation is safe.
 
-- [ ] **Step 6: Run integration tests and commit**
+- [x] **Step 6: Run integration tests and commit**
 
 ```bash
 cargo nextest run -p connector-supabase
