@@ -696,7 +696,7 @@ Expected: every feature supported for the public personal repository is enabled.
 If GitHub returns an unsupported-plan response for one setting, record that
 specific limitation and continue without weakening another setting.
 
-- [ ] **Step 6: Upload the social preview**
+- [x] **Step 6: Upload the social preview**
 
 Open repository Settings > General > Social preview and upload:
 
