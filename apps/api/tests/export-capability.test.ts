@@ -64,4 +64,28 @@ describe("export capability delivery", () => {
       new ExportCapabilityError("EXPORT_CAPABILITY_EXPIRED"),
     );
   });
+
+  it("isolates stored capability state from caller mutation", () => {
+    let now = new Date("2026-07-24T00:00:00.000Z");
+    const service = new ExportCapabilityService(() => now);
+    const capability = service.createCapability({
+      requestId: "req_mutation",
+      objectKey: "exports/req_mutation.bin",
+      downloadUrl: "https://storage.example/download",
+      encryptedArchiveKey: "opaque-agent-sealed-envelope",
+      archiveSizeBytes: 128,
+      browserKeyId: "browser_1",
+      keyWrapVersion: 1,
+      expiresAt: new Date("2026-07-24T00:01:00.000Z"),
+    });
+
+    capability.encryptedArchiveKey = "attacker-controlled-envelope";
+    capability.browserKeyId = "attacker-controlled-key";
+    capability.expiresAt = "2099-01-01T00:00:00.000Z";
+
+    now = new Date("2026-07-24T00:02:00.000Z");
+    expect(() => service.get("req_mutation")).toThrowError(
+      new ExportCapabilityError("EXPORT_CAPABILITY_EXPIRED"),
+    );
+  });
 });

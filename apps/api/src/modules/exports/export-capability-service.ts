@@ -57,7 +57,7 @@ export class ExportCapabilityService {
       keyWrapVersion: input.keyWrapVersion,
     };
     this.capabilities.set(input.requestId, projection);
-    return projection;
+    return { ...projection };
   }
 
   get(requestId: string): ExportCapabilityProjection {
