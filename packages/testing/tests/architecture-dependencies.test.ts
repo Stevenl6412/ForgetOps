@@ -10,12 +10,12 @@ const sourceRules = [
   {
     directory: "packages/domain/src",
     allowedWorkspaceImports: new Set<string>(),
-    allowExternalPackages: false,
+    allowedExternalPackages: new Set(["canonicalize"]),
   },
   {
     directory: "packages/application/src",
     allowedWorkspaceImports: new Set(["@forgetops/domain"]),
-    allowExternalPackages: false,
+    allowedExternalPackages: new Set<string>(),
   },
   {
     directory: "packages/contracts/src",
@@ -23,7 +23,7 @@ const sourceRules = [
       "@forgetops/application",
       "@forgetops/domain",
     ]),
-    allowExternalPackages: true,
+    allowedExternalPackages: undefined,
   },
 ] as const;
 
@@ -48,7 +48,8 @@ describe("clean architecture dependencies", () => {
             );
           } else if (
             !specifier.startsWith("@forgetops/") &&
-            !rule.allowExternalPackages
+            rule.allowedExternalPackages !== undefined &&
+            !rule.allowedExternalPackages.has(specifier)
           ) {
             violations.push(
               `${relative(repositoryRoot, file)} imports external package ${specifier}`,

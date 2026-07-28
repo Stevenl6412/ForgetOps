@@ -9,6 +9,9 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "@forgetops/testing#test": {
+      "cache": false
+    },
     "lint": {
       "dependsOn": ["^lint"],
       "outputs": []
