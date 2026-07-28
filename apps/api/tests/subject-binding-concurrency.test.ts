@@ -13,6 +13,9 @@ import {
 
 let container: StartedPostgreSqlContainer;
 let database: DatabaseConnection;
+const envelopeExpiresAt = new Date(
+  Date.now() + 24 * 60 * 60 * 1000,
+).toISOString();
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer("postgres:17-alpine")
@@ -93,7 +96,7 @@ describe("subject binding concurrency", () => {
       requestId: "req_store",
       ciphertext: serializedEnvelope("req_store", encryptionKeyId),
       encryptionKeyId,
-      expiresAt: "2026-07-25T00:00:00Z",
+      expiresAt: envelopeExpiresAt,
     });
 
     expect(
@@ -265,7 +268,7 @@ async function insertEnvelope(requestId: string): Promise<void> {
       encryption_key_id, expires_at
     ) values (
       ${requestId}, 'tenant_subject', 'env_subject', ${`opaque-${requestId}`},
-      ${`x25519:sha256:${"b".repeat(64)}`}, '2026-07-25T00:00:00Z'
+      ${`x25519:sha256:${"b".repeat(64)}`}, ${envelopeExpiresAt}
     )
   `;
 }
